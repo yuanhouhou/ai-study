@@ -1,0 +1,44 @@
+# Python cache and environments
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+env/
+
+# Local secrets and editor/agent settings
+.env
+.env.*
+!.env.example
+.vscode/
+.claude/
+
+# Local package caches
+.npm-cache*/
+
+# Generated logs and training outputs
+*.log
+runs/
+outputs/
+checkpoints/
+
+# Datasets and model weights
+*.pkl
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+## Additional local data exclusions
+events.out.tfevents.*
+*.tar.gz
+*.gz
+deep_learning/data/
+study_resourece/cifar-10-python/
+study_resourece/test_dateset/
+desktop/
+others/
