@@ -42,7 +42,35 @@
 
 - [Python 并发编程实战](https://www.bilibili.com/video/BV1bK411A7tV)
 
-### 5. hello-agents
+
+### 5. FastAPI Web 开发
+
+FastAPI 是一个现代化的 Python Web 框架，常用于快速构建高性能 API 服务。它基于 Python 类型注解进行参数校验、数据转换和接口文档生成，适合用来开发后端接口、机器学习模型服务、数据服务和前后端分离项目。
+
+核心学习内容：
+
+- 路由：定义接口路径，例如 `GET /items`、`POST /users`。
+- 请求参数：接收路径参数、查询参数、请求体数据。
+- Pydantic：使用数据模型完成参数校验和响应结构定义。
+- 依赖注入：把数据库连接、权限校验、公共参数等逻辑拆分复用。
+- 异步编程：使用 `async def` 提升 I/O 密集型接口的并发能力。
+- ORM：配合数据库完成增删改查。
+- 项目拆分：把路由、模型、数据库、业务逻辑拆成更清晰的模块。
+- 部署与测试：学习接口测试、服务启动和线上部署流程。
+
+FastAPI 的特点：
+
+- 语法简洁，适合 Python 初学者从 Flask 过渡到现代 Web API 开发。
+- 自动生成 Swagger / OpenAPI 文档，方便调试接口。
+- 和异步编程结合紧密，适合高并发 API 服务。
+- 类型提示友好，能减少参数错误和接口文档维护成本。
+
+参考资源：
+
+- [黑马程序员 PythonWeb 开发：FastAPI 从入门到实战](https://www.bilibili.com/video/BV1zV2QBtE39?vd_source=e2413576ab62a790f6f465afd377f842)
+
+
+### 6. hello-agents
 
 `hello-agents` 是 Datawhale 开源的 AI Agent 学习资料，已复制到本仓库的 `hello-agents/` 目录中。
 
