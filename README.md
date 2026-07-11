@@ -1,6 +1,6 @@
 # ai-study
 
-这个仓库用于整理 Python、深度学习、PyTorch、AI Agent 等学习资料和代码实践。PDF文件若无法在线查看，请下载到本地进行查看。测试
+这个仓库用于整理 Python、深度学习、PyTorch、AI Agent 等学习资料和代码实践。PDF文件若无法在线查看，请下载到本地进行查看。
 
 ## 仓库内容
 
