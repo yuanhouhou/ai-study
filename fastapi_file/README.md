@@ -15,6 +15,11 @@
 - [路径参数](#路径参数)
 - [查询参数](#查询参数)
 - [同步和异步接口耗时对比](#同步和异步接口耗时对比)
+- [请求体参数](#请求体参数)
+- [请求体字段校验](#请求体字段校验)
+- [响应类型](#响应类型)
+- [响应数据模型](#响应数据模型)
+- [异常处理](#异常处理)
 
 ## 怎么运行 FastAPI 项目
 
@@ -286,3 +291,263 @@ uvicorn fastapi_file.sync_async:app --reload
 http://127.0.0.1:8000/sync
 http://127.0.0.1:8000/async
 ```
+
+## 请求体参数
+
+请求体英文是 `Request Body`。
+
+在 HTTP 请求中，一个完整请求通常由三部分组成：
+
+- 请求行：包含请求方法、URL、协议版本
+- 请求头：包含元数据信息，例如 `Content-Type`、`Authorization`
+- 请求体：实际要发送的数据内容
+
+请求体位于 HTTP 请求的消息体 `body` 中，常用于创建、更新资源，携带较复杂的数据，例如 JSON。
+
+在 FastAPI 中，请求体通常配合 `POST`、`PUT` 等方法使用。
+
+例如 `request_body.py` 中的注册接口：
+
+```python
+from pydantic import BaseModel
+
+class User(BaseModel):
+    username: str
+    password: str
+
+@app.post("/register")
+async def register(user: User):
+    return user
+```
+
+这里的 `User` 定义了请求体的数据格式。
+
+测试时可以发送：
+
+```json
+{
+  "username": "张三",
+  "password": "12345678"
+}
+```
+
+`@app.post("/register")` 表示这个接口使用 `POST` 请求。一般来说：
+
+- `GET`：用于查询数据
+- `POST`：用于提交或新增数据
+
+新增图书示例：
+
+```python
+class Add_book(BaseModel):
+    book_name: str
+    author_name: str
+    publishing_company: str
+    price: int
+
+@app.post("/book_add")
+async def Add_new_book(book: Add_book):
+    return book
+```
+
+测试请求体：
+
+```json
+{
+  "book_name": "Python入门",
+  "author_name": "张三",
+  "publishing_company": "黑马出版社",
+  "price": 88
+}
+```
+
+当前代码只是接收并返回请求体内容，不会永久保存数据。
+
+## 请求体字段校验
+
+请求体参数可以通过两种方式添加类型和校验：
+
+- Python 原生类型注解，例如 `str`、`int`
+- Pydantic 的 `Field` 注解
+
+例如：
+
+```python
+from pydantic import BaseModel, Field
+
+class User(BaseModel):
+    username: str = Field(
+        default="张三",
+        min_length=2,
+        max_length=10,
+        description="用户名长度要求2-10字"
+    )
+    password: str = Field(
+        ...,
+        min_length=8,
+        max_length=16,
+        description="密码不低于8位，不多于16位"
+    )
+```
+
+这里：
+
+- `default="张三"`：默认值是张三
+- `...`：表示这个字段必填
+- `min_length`：最小长度
+- `max_length`：最大长度
+- `description`：在 `/docs` 文档中显示的说明
+
+新增图书字段校验示例：
+
+```python
+class Add_book(BaseModel):
+    book_name: str = Field(..., min_length=2, max_length=20, description="书名：不能为空，长度2-20")
+    author_name: str = Field(..., min_length=2, max_length=10, description="作者名：长度2-10")
+    publishing_company: str = Field(default="黑马出版社", description="出版社：默认黑马出版社")
+    price: int = Field(..., gt=0, description="价格：不能为空，大于0元")
+```
+
+`Field` 主要用于请求体字段；前面学过的 `Path` 用于路径参数，`Query` 用于查询参数。
+
+## 响应类型
+
+默认情况下，FastAPI 会把路径操作函数返回的 Python 对象，例如字典、列表、Pydantic 模型，自动转换为 JSON 格式返回。
+
+例如：
+
+```python
+@app.get("/")
+async def root():
+    return {"message": "hello world"}
+```
+
+默认返回 JSON。
+
+如果需要返回非 JSON 数据，例如 HTML、文件、图片、流式数据或重定向，可以使用 FastAPI 提供的响应类型。
+
+常见响应类型：
+
+| 响应类型 | 用途 | 示例 |
+| --- | --- | --- |
+| JSONResponse | 默认响应，返回 JSON 数据 | `return {"key": "value"}` |
+| HTMLResponse | 返回 HTML 内容 | `return "<h1>标题</h1>"` |
+| PlainTextResponse | 返回纯文本 | `return "text"` |
+| FileResponse | 返回文件或图片 | `return FileResponse(path)` |
+| StreamingResponse | 流式响应 | 生成器函数返回数据 |
+| RedirectResponse | 重定向 | `return RedirectResponse(url)` |
+
+`request_body.py` 中的 HTML 示例：
+
+```python
+from fastapi.responses import HTMLResponse
+
+@app.get("/html", response_class=HTMLResponse)
+async def get_html():
+    return "<h1>这是1级标题<h1>"
+```
+
+这里在装饰器中指定 `response_class=HTMLResponse`，适合固定返回类型的场景。
+
+文件或图片响应示例：
+
+```python
+from fastapi.responses import FileResponse
+
+@app.get("/image", response_class=FileResponse)
+async def get_file():
+    path = r"E:\vscode_project\python_study\deeplearning_file\study_resourece\pytorch-tutorial-main\pytorch-tutorial-main\imgs\weixin.jpg"
+    return FileResponse(path)
+```
+
+这里返回的是一个文件响应对象，适合文件下载、图片返回等场景。
+
+## 响应数据模型
+
+如果想规定接口返回的数据格式，应使用 `response_model`。
+
+`response_model` 用的是 Pydantic 模型，不是 `response_class`。
+
+例如新闻接口：
+
+```python
+class News(BaseModel):
+    id: int
+    title: str
+    content: str
+
+@app.get("/news/{id}", response_model=News)
+async def get_news(id: int):
+    return {
+        "id": id,
+        "title": f"这是第{id}个新闻",
+        "content": "这是新闻内容"
+    }
+```
+
+这里：
+
+- `response_model=News`：约束返回数据必须符合 `News` 的结构
+- `response_class=HTMLResponse`：控制响应类型，比如 HTML、文件等
+
+简单区分：
+
+```text
+response_model：控制返回数据格式
+response_class：控制响应内容类型
+```
+
+## 异常处理
+
+当客户端请求的数据不合法，或者资源不存在时，可以使用 `HTTPException` 主动中断请求并返回错误响应。
+
+例如 `fastapi_exception.py` 中按照 id 查询新闻：
+
+```python
+from fastapi import FastAPI, HTTPException
+
+@app.get("/news/{id}")
+async def get_news(id: int):
+    id_list = [1, 2, 3, 4, 5, 6]
+    if id not in id_list:
+        raise HTTPException(status_code=404, detail="你寻找的新闻不存在")
+    return {
+        "id": id
+    }
+```
+
+访问存在的新闻：
+
+```text
+http://127.0.0.1:8000/news/1
+```
+
+返回：
+
+```json
+{"id": 1}
+```
+
+访问不存在的新闻：
+
+```text
+http://127.0.0.1:8000/news/100
+```
+
+返回 404 错误：
+
+```json
+{
+  "detail": "你寻找的新闻不存在"
+}
+```
+
+常见状态码：
+
+- `400`：请求参数错误
+- `401`：未认证
+- `403`：没有权限
+- `404`：资源不存在
+- `500`：服务器内部错误
+
+异常处理适合处理客户端引发的错误，例如资源找不到、认证失败、参数不合法等。

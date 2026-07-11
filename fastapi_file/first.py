@@ -1,5 +1,6 @@
 #运行时，在终端输入 unvicorn 文件夹名.文件名:app --reload
-
+#Path：限制路径参数
+#Query：限制查询参数
 from fastapi import FastAPI,Path,Query
 import uvicorn
 
