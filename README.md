@@ -11,6 +11,7 @@
 - [fishbook](#fishbook)
 - [PyTorch 学习资料](#pytorch-学习资料)
 - [Python 并发编程实战](#python-并发编程实战)
+- [MySQL 数据库学习资料](#mysql-数据库学习资料)
 - [FastAPI Web 开发](#fastapi-web-开发)
 - [hello-agents](#hello-agents)
 - [Claude Code 学习手册](#claude-code-学习手册)
@@ -24,6 +25,7 @@
 | `fishbook/` | 《深度学习入门：基于 Python 的理论与实践》相关资料 |
 | `study_resourece/` | PyTorch 入门课程资料和练习内容 |
 | `process_thread_coroutine/` | 多线程、多进程、协程、异步 IO 学习内容 |
+| `mysql/` | MySQL 数据库课程资料包和内容笔记 |
 | `fastapi_file/` | FastAPI 后端开发学习代码和笔记 |
 | `hello-agents/` | Datawhale AI Agent 开源学习资料 |
 | `Claude Code 学习手册/` | Claude Code 学习手册 PDF 和配套 README |
@@ -67,6 +69,26 @@
 参考资料：
 
 - [Python 并发编程实战](https://www.bilibili.com/video/BV1bK411A7tV)
+
+## MySQL 数据库学习资料
+
+`mysql/` 用于整理 MySQL 数据库课程资料和内容笔记，适合配合后续 FastAPI、数据分析、后端接口开发学习。
+
+这个目录包含：
+
+- `MYSQL内容笔记.md`：根据 MySQL 课程 PDF 整理的结构化学习笔记
+- `Mysql数据库-牛子.zip`：原始课程资料压缩包
+
+核心学习内容：
+
+- SQL 分类与基本 `SELECT` 查询
+- 运算符、过滤条件、排序和分页
+- 多表查询、连接、`UNION`
+- 单行函数、聚合函数、`GROUP BY`、`HAVING`
+- 子查询、数据库和表的创建管理
+- 数据插入、更新、删除和视图
+- 触发器、存储过程、存储函数
+- 评价问题基础和数据分析扩展
 
 ## FastAPI Web 开发
 
