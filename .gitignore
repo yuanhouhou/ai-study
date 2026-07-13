@@ -13,6 +13,7 @@ env/
 .vscode/
 .claude/
 Codex会话复盘与个人风格档案.md
+需求拆解提示词.md
 
 # Local package caches
 .npm-cache*/
