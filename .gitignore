@@ -12,6 +12,7 @@ env/
 !.env.example
 .vscode/
 .claude/
+Codex会话复盘与个人风格档案.md
 
 # Local package caches
 .npm-cache*/
