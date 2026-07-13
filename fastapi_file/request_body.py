@@ -38,13 +38,14 @@ async def Add_new_book(book:Add_book):
 async def get_html():
     return "<h1>这是1级标题<h1>"
 
-#接口 -> 返回一张图片 
+#接口 -> 返回一张图片,流媒体，音视频
 @app.get("/image", response_class=FileResponse)
 async def get_file():
     path = r"E:\vscode_project\python_study\deeplearning_file\study_resourece\pytorch-tutorial-main\pytorch-tutorial-main\imgs\weixin.jpg"
     return FileResponse(path)
 
 #需求：新闻接口 -> 响应数据格式 id title content
+#自定义响应，要保持return和请求体的数据格式保持一致
 class News(BaseModel):
     id : int
     title : str

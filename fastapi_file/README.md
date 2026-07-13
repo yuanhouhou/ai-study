@@ -4,6 +4,8 @@
 
 - `first.py`：路由、路径参数、查询参数示例
 - `sync_async.py`：同步接口和异步接口耗时对比示例
+- `middleware.py`：中间件的定义和多个中间件的执行顺序示例
+- `depends.py`：依赖注入系统示例，复用分页查询参数逻辑
 
 ## 目录
 
@@ -20,6 +22,9 @@
 - [响应类型](#响应类型)
 - [响应数据模型](#响应数据模型)
 - [异常处理](#异常处理)
+- [中间件](#中间件)
+- [依赖注入](#依赖注入)
+- [ORM 简介](#orm-简介)
 
 ## 怎么运行 FastAPI 项目
 
@@ -33,6 +38,18 @@ uvicorn fastapi_file.first:app --reload
 
 ```powershell
 uvicorn fastapi_file.sync_async:app --reload
+```
+
+如果要运行中间件示例：
+
+```powershell
+uvicorn fastapi_file.middleware:app --reload
+```
+
+如果要运行依赖注入示例：
+
+```powershell
+uvicorn fastapi_file.depends:app --reload
 ```
 
 其中：
@@ -551,3 +568,243 @@ http://127.0.0.1:8000/news/100
 - `500`：服务器内部错误
 
 异常处理适合处理客户端引发的错误，例如资源找不到、认证失败、参数不合法等。
+
+## 中间件
+
+中间件英文是 `Middleware`，它是在每个请求进入 FastAPI 应用时都会执行的函数。
+
+可以把中间件理解为请求和路由处理函数之间的一层统一处理逻辑：
+
+```text
+客户端请求 -> 中间件 -> 路由处理函数 -> 中间件 -> 客户端响应
+```
+
+它会在请求真正到达路径操作函数之前执行一次，也会在响应返回给客户端之前再执行一次。
+
+中间件适合处理多个接口都需要的公共逻辑，例如：
+
+- 身份认证
+- 日志记录
+- 跨域处理
+- 响应头处理
+- 性能监控
+
+在 FastAPI 中，定义中间件需要在函数顶部使用装饰器：
+
+```python
+@app.middleware("http")
+async def middleware(request, call_next):
+    print("中间件开始处理 -- start")
+    response = await call_next(request)
+    print("中间件处理完成 -- end")
+    return response
+```
+
+这里有两个关键参数：
+
+- `request`：当前请求对象
+- `call_next`：把请求继续传递给后面的中间件或路由处理函数
+
+`await call_next(request)` 之前的代码，会在请求到达接口函数之前执行；后面的代码，会在接口函数返回响应之后执行。
+
+当前 `middleware.py` 中定义了 3 个中间件：
+
+```python
+@app.middleware("http")
+async def middleware1(request, call_next):
+    print("中间件1 start")
+    response = await call_next(request)
+    print("中间件1 end")
+    return response
+
+@app.middleware("http")
+async def middleware2(request, call_next):
+    print("中间件2 start")
+    response = await call_next(request)
+    print("中间件2 end")
+    return response
+
+@app.middleware("http")
+async def middleware0(request, call_next):
+    print("中间件0 start")
+    response = await call_next(request)
+    print("中间件0 end")
+    return response
+```
+
+多个中间件的执行顺序是：请求进入时自下而上，响应返回时再反向回来。
+
+按照当前代码，访问 `/` 时大致输出顺序是：
+
+```text
+中间件0 start
+中间件2 start
+中间件1 start
+中间件1 end
+中间件2 end
+中间件0 end
+```
+
+启动示例：
+
+```powershell
+uvicorn fastapi_file.middleware:app --reload
+```
+
+访问：
+
+```text
+http://127.0.0.1:8000/
+```
+
+## 依赖注入
+
+依赖注入可以用来共享通用逻辑，避免在多个接口中重复写相同代码。
+
+图片里的核心思路是：
+
+```text
+创建依赖项 -> 导入 Depends -> 声明依赖项
+```
+
+依赖项可以是一个可复用的函数或类，负责提供某种功能或数据。FastAPI 会自动调用依赖项，并把结果注入到路径操作函数中。
+
+依赖注入常见应用场景：
+
+| 场景 | 作用 |
+| --- | --- |
+| 处理请求参数 | 从请求中提取并校验路径参数、查询参数、请求体 |
+| 共享业务逻辑 | 抽取多个路由公用的代码 |
+| 共享数据库连接 | 管理数据库会话的创建、使用、关闭 |
+| 安全和认证 | 验证用户身份、检查权限和角色要求 |
+
+当前 `depends.py` 中把分页参数抽成了一个公共依赖：
+
+```python
+from fastapi import FastAPI, Query, Depends
+
+app = FastAPI()
+
+async def common_parameters(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=10, le=60)
+):
+    return {
+        "skip": skip,
+        "limit": limit
+    }
+```
+
+这里的 `common_parameters` 就是依赖项，它负责统一处理分页参数：
+
+- `skip`：跳过多少条数据，默认值是 `0`，并且必须大于等于 `0`
+- `limit`：返回多少条数据，默认值是 `10`，并且不能超过 `60`
+
+然后在多个接口中通过 `Depends` 复用：
+
+```python
+@app.get("/news/news_list")
+async def get_news_list(commons = Depends(common_parameters)):
+    return commons
+
+@app.get("/user/user_list")
+async def get_user_list(commons = Depends(common_parameters)):
+    return commons
+```
+
+注意：`Depends` 中传的是函数本身，不要加括号。
+
+正确写法：
+
+```python
+Depends(common_parameters)
+```
+
+错误写法：
+
+```python
+Depends(common_parameters())
+```
+
+因为加了括号就变成了立即调用函数，而不是把函数交给 FastAPI 作为依赖项管理。
+
+启动示例：
+
+```powershell
+uvicorn fastapi_file.depends:app --reload
+```
+
+访问：
+
+```text
+http://127.0.0.1:8000/news/news_list?skip=0&limit=10
+http://127.0.0.1:8000/user/user_list?skip=5&limit=20
+```
+
+返回示例：
+
+```json
+{
+  "skip": 0,
+  "limit": 10
+}
+```
+
+依赖注入的优点：
+
+- 代码复用：一次编写，多处使用
+- 解耦：业务逻辑和基础设施代码分离
+- 易于测试：可以用模拟依赖替换真实依赖
+
+## ORM 简介
+
+ORM 全称是 `Object-Relational Mapping`，中文叫对象关系映射。
+
+它是一种编程技术，用于在面向对象编程语言和关系型数据库之间建立映射。简单说，就是让开发者可以用操作 Python 对象的方式操作数据库，而不需要直接编写大量复杂 SQL。
+
+例如，原本可能要写 SQL：
+
+```sql
+SELECT * FROM users WHERE id = 1;
+```
+
+使用 ORM 后，更像是在操作对象：
+
+```python
+user = await session.get(User, 1)
+```
+
+ORM 的优势：
+
+- 减少重复 SQL 代码
+- 代码更简洁易读
+- 自动处理数据库连接和事务
+- 能降低手写 SQL 时出现 SQL 注入问题的风险
+
+常见 ORM 工具：
+
+| 排名 | ORM 工具 | 特点 | 适用场景 |
+| --- | --- | --- | --- |
+| 1 | SQLAlchemy ORM | 功能最强、最灵活、企业级 | 各类 API、微服务、数据应用 |
+| 2 | Django ORM | 封装好、上手快 | Django 项目、管理后台 |
+| 3 | Tortoise ORM | 全异步 | 异步 Web 服务、高并发 API |
+
+ORM 的基本使用流程：
+
+```text
+1. 安装 ORM 和数据库驱动
+2. 建库、建表
+3. 查询、新增、修改、删除数据
+```
+
+在 FastAPI 学习中，后续如果要连接数据库，常见组合是：
+
+```text
+FastAPI + SQLAlchemy + aiomysql
+```
+
+其中：
+
+- `SQLAlchemy`：ORM 工具
+- `aiomysql`：异步 MySQL 数据库驱动
+- `run_sync(Base.metadata.create_all)`：常用于异步环境中创建数据库表
