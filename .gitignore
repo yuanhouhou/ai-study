@@ -10,6 +10,9 @@ env/
 .env
 .env.*
 !.env.example
+config/.env
+config/*.local
+config/*.secret
 .vscode/
 .claude/
 Codex会话复盘与个人风格档案.md
