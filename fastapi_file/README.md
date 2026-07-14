@@ -6,6 +6,7 @@
 - `sync_async.py`：同步接口和异步接口耗时对比示例
 - `middleware.py`：中间件的定义和多个中间件的执行顺序示例
 - `depends.py`：依赖注入系统示例，复用分页查询参数逻辑
+- `orm_01.py`：SQLAlchemy 异步 ORM 示例，启动 FastAPI 时自动创建 `book` 表
 
 ## 目录
 
@@ -25,6 +26,7 @@
 - [中间件](#中间件)
 - [依赖注入](#依赖注入)
 - [ORM 简介](#orm-简介)
+- [SQLAlchemy 异步 ORM 建表示例](#sqlalchemy-异步-orm-建表示例)
 
 ## 怎么运行 FastAPI 项目
 
@@ -50,6 +52,12 @@ uvicorn fastapi_file.middleware:app --reload
 
 ```powershell
 uvicorn fastapi_file.depends:app --reload
+```
+
+如果要运行 SQLAlchemy 异步 ORM 示例：
+
+```powershell
+uvicorn fastapi_file.orm_01:app --reload
 ```
 
 其中：
@@ -808,3 +816,118 @@ FastAPI + SQLAlchemy + aiomysql
 - `SQLAlchemy`：ORM 工具
 - `aiomysql`：异步 MySQL 数据库驱动
 - `run_sync(Base.metadata.create_all)`：常用于异步环境中创建数据库表
+
+## SQLAlchemy 异步 ORM 建表示例
+
+`orm_01.py` 演示了 FastAPI 启动时自动连接数据库并创建表的基本流程。
+
+这个示例的核心结构是：
+
+```text
+读取数据库连接串 -> 创建异步引擎 -> 定义 ORM 模型 -> FastAPI 启动时建表
+```
+
+### 连接串来源
+
+代码会优先读取仓库根目录下的本地配置文件：
+
+```text
+config/.env
+```
+
+并从里面读取：
+
+```text
+ASYNC_DATABASE_URL=...
+```
+
+因为数据库连接串通常包含用户名、密码、主机和数据库名，所以 `config/.env` 不应该提交到 GitHub。当前仓库已经通过 `.gitignore` 忽略这个文件。
+
+### 异步引擎
+
+`orm_01.py` 使用 `create_async_engine` 创建异步数据库引擎：
+
+```python
+async_engine = create_async_engine(
+    ASYNC_DATABASE_URL,
+    echo=True,
+    pool_size=10,
+    max_overflow=20
+)
+```
+
+其中：
+
+- `ASYNC_DATABASE_URL`：数据库连接地址
+- `echo=True`：在终端输出执行的 SQL，学习阶段便于观察
+- `pool_size=10`：连接池中保持的活跃连接数量
+- `max_overflow=20`：连接池不够用时允许额外创建的连接数
+
+### 模型定义
+
+`Base` 是所有 ORM 模型类的基类，里面统一定义了创建时间和更新时间：
+
+```python
+class Base(DeclarativeBase):
+    create_time: Mapped[datetime] = mapped_column(DateTime, insert_default=func.now(), default=func.now, comment="创建时间")
+    update_time: Mapped[datetime] = mapped_column(DateTime, insert_default=func.now(), default=func.now, onupdate=func.now(), comment="更新时间")
+```
+
+`Book` 类对应数据库里的 `book` 表：
+
+```python
+class Book(Base):
+    __tablename__ = "book"
+    id: Mapped[int] = mapped_column(primary_key=True, comment="书籍ID")
+    bookname: Mapped[str] = mapped_column(String(255), comment="书名")
+    author: Mapped[str] = mapped_column(String(255), comment="作者")
+    price: Mapped[float] = mapped_column(Float, comment="书籍价格")
+    publisher: Mapped[str] = mapped_column(String(255), comment="出版社")
+```
+
+这里可以理解为：
+
+- Python 类名 `Book` 对应一张表
+- 类属性 `id`、`bookname`、`author` 等对应表字段
+- `Mapped[...]` 说明字段在 Python 里的类型
+- `mapped_column(...)` 说明字段在数据库里的约束和注释
+
+### 启动时建表
+
+FastAPI 启动时会执行 `startup_event`：
+
+```python
+@app.on_event("startup")
+async def startup_event():
+    await create_tables()
+```
+
+`create_tables()` 内部通过：
+
+```python
+await conn.run_sync(Base.metadata.create_all)
+```
+
+把 ORM 模型定义同步成数据库表结构。
+
+启动命令：
+
+```powershell
+uvicorn fastapi_file.orm_01:app --reload
+```
+
+启动成功后，访问：
+
+```text
+http://127.0.0.1:8000/
+```
+
+会返回：
+
+```json
+{
+  "message": "hello world"
+}
+```
+
+如果数据库连接串正确，启动阶段会自动创建 `book` 表。这个示例目前主要用于学习“模型定义 + 自动建表”，还没有写新增、查询、修改、删除接口。
