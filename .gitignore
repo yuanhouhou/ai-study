@@ -11,6 +11,7 @@ env/
 .claude/
 .codex/
 .agents/
+AGENTS.md
 
 # Local dependency and package caches
 .codex_deps/
