@@ -15,6 +15,7 @@ AGENTS.md
 
 # Local dependency and package caches
 .codex_deps/
+.npm-caches/
 .npm-cache*/
 
 # Local-only top-level work areas
