@@ -1,13 +1,12 @@
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
-from fastapi import FastAPI
-from sqlalchemy.ext.asyncio import create_async_engine
+from fastapi import Depends, FastAPI
+from sqlalchemy.ext.asyncio import create_async_engine,async_sessionmaker,AsyncSession
 from sqlalchemy.orm import DeclarativeBase,Mapped,mapped_column
 from datetime import datetime
-from sqlalchemy import DateTime, Float, String,func
+from sqlalchemy import DateTime, Float, String,func, select
 import uvicorn
-
-app = FastAPI()
 
 #1.创建异步引擎
 
@@ -45,15 +44,47 @@ async def create_tables():
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all) # Base 模型类的元数据创建
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     await create_tables()
-    
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
 @app.get("/")
 async def root():
     return {
         "message" : "hello world"
     }
+
+
+#需求：查询功能的接口，查询图书->依赖注入：创建依赖项获取数据库会话 + Depends 注入路由处理函数
+AsyncSessionlocal = async_sessionmaker(
+    bind = async_engine, # 绑定数据库引擎
+    class_ = AsyncSession, # 指定会话类
+    expire_on_commit = False # 提交后会话不过期，不会重新查询数据库
+)
+
+#依赖项
+async def get_database():
+    async with AsyncSessionlocal() as session:
+        try:
+            yield session # 返回数据库会话给路由处理函数
+            await session.commit() # 提交事务
+        except Exception:
+            await session.rollback() # 有异常 回滚
+            raise
+        finally:
+            await session.close() # 关闭会话
+
+@app.get("/book/books")
+async def get_book_list(db:AsyncSession = Depends(get_database)):
+    # 查询
+    result = await db.execute(select(Book))
+    book = result.scalars().all()
+    return book
+
 
 if __name__ == "__main__":
     uvicorn.run("orm_01:app", host="127.0.0.1", port=8000, reload=True)

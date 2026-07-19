@@ -6,20 +6,31 @@ __pycache__/
 venv/
 env/
 
-# Local secrets and editor/agent settings
+# Local editor and agent settings
+.vscode/
+.claude/
+.codex/
+.agents/
+
+# Local dependency and package caches
+.codex_deps/
+.npm-cache*/
+
+# Local-only top-level work areas
+02_组会资料/
+03_我创建的Skills/
+04_杂项与临时资料/
+
+# Local secrets
 .env
 .env.*
 !.env.example
-config/.env
-config/*.local
-config/*.secret
-.vscode/
-.claude/
-Codex会话复盘与个人风格档案.md
-需求拆解提示词.md
-
-# Local package caches
-.npm-cache*/
+01_GitHub仓库文件/config/.env
+01_GitHub仓库文件/config/*.local
+01_GitHub仓库文件/config/*.secret
+01_GitHub仓库文件/**/.env
+01_GitHub仓库文件/**/.env.*
+!01_GitHub仓库文件/**/.env.example
 
 # Generated logs and training outputs
 *.log
@@ -33,17 +44,13 @@ checkpoints/
 *.pth
 *.ckpt
 *.onnx
+events.out.tfevents.*
+*.tar.gz
+*.gz
+01_GitHub仓库文件/deep_learning/data/
+01_GitHub仓库文件/study_resourece/cifar-10-python/
+01_GitHub仓库文件/study_resourece/test_dateset/
 
 # OS metadata
 .DS_Store
 Thumbs.db
-
-## Additional local data exclusions
-events.out.tfevents.*
-*.tar.gz
-*.gz
-deep_learning/data/
-study_resourece/cifar-10-python/
-study_resourece/test_dateset/
-desktop/
-others/
