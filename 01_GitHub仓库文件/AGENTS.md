@@ -15,6 +15,9 @@
 - 解释 Python、PyTorch、FastAPI 等学习代码时，优先结合当前文件和用户看到的错误，不要只给抽象教程。
 - 修改训练脚本时，优先使用可复用的 `device = torch.device(...)` 与 `.to(device)` 模式，避免硬编码 `.cuda()`。
 - 新增 FastAPI 示例文件后，同步更新 `fastapi_file/README.md` 的文件清单、目录、运行命令和对应概念说明。
+- FastAPI / MySQL / SQLAlchemy 学习任务优先保持用户当前技术路线；不要为了临时跑通而擅自把 MySQL 示例改成 SQLite。
+- MySQL ORM 排查按层拆开：本机 MySQL Server 是否启动、Database Client 是否能连接、Python ORM 是否读取到正确 `.env`、脚本是否能完成最小查询。
+- SQL 练习脚本可以独立新增，避免强行塞进 Python 文件；新增后说明应在 Database Client 里运行还是在 Python 中运行。
 - FastAPI、SQLAlchemy、MySQL 等学习代码可以读取本地配置文件，但不要把真实数据库连接串、密钥或 `.env` 提交到仓库。
 - 本目录的本地数据库配置优先放在 `config/.env`、`config/*.local` 或 `config/*.secret`，并保持这些路径被根目录 `.gitignore` 忽略。
 
