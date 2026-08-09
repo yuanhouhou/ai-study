@@ -6,7 +6,7 @@
 - `sync_async.py`：同步接口和异步接口耗时对比示例
 - `middleware.py`：中间件的定义和多个中间件的执行顺序示例
 - `depends.py`：依赖注入系统示例，复用分页查询参数逻辑
-- `orm_01.py`：SQLAlchemy 异步 ORM 示例，启动 FastAPI 时自动创建 `book` 表
+- `orm_01.py`：SQLAlchemy 异步 ORM 示例，包含建表、查询、分页、新增、更新、删除
 
 ## 目录
 
@@ -27,6 +27,19 @@
 - [依赖注入](#依赖注入)
 - [ORM 简介](#orm-简介)
 - [SQLAlchemy 异步 ORM 建表示例](#sqlalchemy-异步-orm-建表示例)
+  - [连接串来源](#连接串来源)
+  - [异步引擎和会话](#异步引擎和会话)
+  - [模型定义和启动建表](#模型定义和启动建表)
+  - [启动命令](#启动命令)
+  - [查询全部数据](#查询全部数据)
+  - [条件查询](#条件查询)
+  - [模糊查询和逻辑条件](#模糊查询和逻辑条件)
+  - [聚合查询](#聚合查询)
+  - [分页查询](#分页查询)
+  - [新增数据](#新增数据)
+  - [更新数据](#更新数据)
+  - [删除数据](#删除数据)
+  - [ORM 查询总结](#orm-查询总结)
 
 ## 怎么运行 FastAPI 项目
 
@@ -55,6 +68,12 @@ uvicorn fastapi_file.depends:app --reload
 ```
 
 如果要运行 SQLAlchemy 异步 ORM 示例：
+
+```powershell
+uvicorn fastapi_file.orm_01:app --reload --app-dir ".\01_GitHub仓库文件"
+```
+
+如果已经先进入 `01_GitHub仓库文件` 目录，则可以继续使用：
 
 ```powershell
 uvicorn fastapi_file.orm_01:app --reload
@@ -808,34 +827,28 @@ ORM 的基本使用流程：
 在 FastAPI 学习中，后续如果要连接数据库，常见组合是：
 
 ```text
-FastAPI + SQLAlchemy + aiomysql
+FastAPI + SQLAlchemy + asyncmy
 ```
 
 其中：
 
 - `SQLAlchemy`：ORM 工具
-- `aiomysql`：异步 MySQL 数据库驱动
+- `asyncmy`：异步 MySQL 数据库驱动
 - `run_sync(Base.metadata.create_all)`：常用于异步环境中创建数据库表
 
 ## SQLAlchemy 异步 ORM 建表示例
 
-`orm_01.py` 演示了 FastAPI 启动时自动连接数据库并创建表的基本流程。
+`orm_01.py` 演示了 FastAPI + SQLAlchemy 异步 ORM 操作 MySQL 的完整练习流程，当前包含自动建表、查询、模糊查询、聚合查询、分页查询、新增、更新和删除。
 
 这个示例的核心结构是：
 
 ```text
-读取数据库连接串 -> 创建异步引擎 -> 定义 ORM 模型 -> FastAPI 启动时建表
+读取数据库连接串 -> 创建异步引擎 -> 定义 ORM 模型 -> 注入数据库会话 -> 操作 book 表
 ```
 
 ### 连接串来源
 
-代码会优先读取仓库根目录下的本地配置文件：
-
-```text
-config/.env
-```
-
-并从里面读取：
+代码会读取 `01_GitHub仓库文件/config/.env` 中的数据库连接串：
 
 ```text
 ASYNC_DATABASE_URL=...
@@ -843,7 +856,7 @@ ASYNC_DATABASE_URL=...
 
 因为数据库连接串通常包含用户名、密码、主机和数据库名，所以 `config/.env` 不应该提交到 GitHub。当前仓库已经通过 `.gitignore` 忽略这个文件。
 
-### 异步引擎
+### 异步引擎和会话
 
 `orm_01.py` 使用 `create_async_engine` 创建异步数据库引擎：
 
@@ -863,17 +876,32 @@ async_engine = create_async_engine(
 - `pool_size=10`：连接池中保持的活跃连接数量
 - `max_overflow=20`：连接池不够用时允许额外创建的连接数
 
-### 模型定义
-
-`Base` 是所有 ORM 模型类的基类，里面统一定义了创建时间和更新时间：
+数据库会话通过依赖注入交给接口函数使用：
 
 ```python
-class Base(DeclarativeBase):
-    create_time: Mapped[datetime] = mapped_column(DateTime, insert_default=func.now(), default=func.now, comment="创建时间")
-    update_time: Mapped[datetime] = mapped_column(DateTime, insert_default=func.now(), default=func.now, onupdate=func.now(), comment="更新时间")
+AsyncSessionlocal = async_sessionmaker(
+    bind=async_engine,
+    class_=AsyncSession,
+    expire_on_commit=False
+)
+
+async def get_database():
+    async with AsyncSessionlocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
 ```
 
-`Book` 类对应数据库里的 `book` 表：
+这里的 `Depends(get_database)` 会在每次请求时提供一个 `AsyncSession`，接口函数只负责写查询或增删改逻辑。
+
+### 模型定义和启动建表
+
+`Base` 是所有 ORM 模型类的基类，里面统一定义了创建时间和更新时间。`Book` 类对应数据库里的 `book` 表：
 
 ```python
 class Book(Base):
@@ -885,21 +913,13 @@ class Book(Base):
     publisher: Mapped[str] = mapped_column(String(255), comment="出版社")
 ```
 
-这里可以理解为：
-
-- Python 类名 `Book` 对应一张表
-- 类属性 `id`、`bookname`、`author` 等对应表字段
-- `Mapped[...]` 说明字段在 Python 里的类型
-- `mapped_column(...)` 说明字段在数据库里的约束和注释
-
-### 启动时建表
-
-FastAPI 启动时会执行 `startup_event`：
+FastAPI 启动时通过 `lifespan` 调用 `create_tables()`：
 
 ```python
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     await create_tables()
+    yield
 ```
 
 `create_tables()` 内部通过：
@@ -910,24 +930,354 @@ await conn.run_sync(Base.metadata.create_all)
 
 把 ORM 模型定义同步成数据库表结构。
 
-启动命令：
+### 启动命令
+
+如果终端在当前仓库总根目录：
 
 ```powershell
-uvicorn fastapi_file.orm_01:app --reload
+python -m uvicorn fastapi_file.orm_01:app --reload --app-dir ".\01_GitHub仓库文件"
 ```
 
-启动成功后，访问：
+如果已经先进入 `01_GitHub仓库文件` 目录：
+
+```powershell
+python -m uvicorn fastapi_file.orm_01:app --reload
+```
+
+启动成功后访问：
 
 ```text
-http://127.0.0.1:8000/
+http://127.0.0.1:8000/docs
 ```
 
-会返回：
+可以在 FastAPI 交互式文档里测试下面这些接口。
+
+### 查询全部数据
+
+查询核心链路是：
+
+```text
+select() -> db.execute() -> scalars().all() -> 返回列表
+```
+
+代码示例：
+
+```python
+@app.get("/book/books")
+async def get_book_list(db: AsyncSession = Depends(get_database)):
+    result = await db.execute(select(Book))
+    book = result.scalars().all()
+    return book
+```
+
+访问：
+
+```text
+http://127.0.0.1:8000/book/books
+```
+
+### 条件查询
+
+按主键 id 查询单条数据：
+
+```python
+@app.get("/book/search_book_id/{book_id}")
+async def get_book_list1(book_id: int, db: AsyncSession = Depends(get_database)):
+    result = await db.execute(select(Book).where(Book.id == book_id))
+    book = result.scalars().first()
+    return book
+```
+
+访问：
+
+```text
+http://127.0.0.1:8000/book/search_book_id/1
+```
+
+按价格查询多条数据：
+
+```python
+@app.get("/book/search_book_price/{price}")
+async def get_book_list2(price: float, db: AsyncSession = Depends(get_database)):
+    result = await db.execute(select(Book).where(Book.price >= price))
+    book = result.scalars().all()
+    return book
+```
+
+访问：
+
+```text
+http://127.0.0.1:8000/book/search_book_price/100
+```
+
+### 模糊查询和逻辑条件
+
+SQLAlchemy 中可以使用 `like()` 做模糊查询：
+
+| 写法 | 含义 |
+| --- | --- |
+| `like("曹%")` | 以“曹”开头 |
+| `like("%曹")` | 以“曹”结尾 |
+| `like("%曹%")` | 包含“曹” |
+| `like("曹_")` | “曹”后面匹配一个字符 |
+
+SQL 通配符里，`%` 表示零个、一个或多个字符，`_` 表示一个单字符。这里不是 Python 里的 `*`。
+
+当前代码把作者和价格作为查询参数，并使用 `&` 表示“同时满足”：
+
+```python
+@app.get("/book/search_book_author")
+async def get_book_list3(
+    author: str,
+    price: float,
+    db: AsyncSession = Depends(get_database)
+):
+    result = await db.execute(
+        select(Book).where((Book.author.like(f"{author}%")) & (Book.price >= price))
+    )
+    book = result.scalars().all()
+    return book
+```
+
+访问：
+
+```text
+http://127.0.0.1:8000/book/search_book_author?author=曹&price=100
+```
+
+常见逻辑符号：
+
+| 符号 | 含义 |
+| --- | --- |
+| `&` | 与，同时满足 |
+| `|` | 或，满足任意一个 |
+| `~` | 非，取反 |
+
+包含查询可以使用 `in_()`：
+
+```python
+id_list = [1, 3, 5, 7]
+result = await db.execute(select(Book).where(Book.id.in_(id_list)))
+```
+
+访问：
+
+```text
+http://127.0.0.1:8000/book/search_book_author_idlist
+```
+
+### 聚合查询
+
+聚合查询使用：
+
+```text
+func.方法(模型类.属性)
+```
+
+常用方法：
+
+| 方法 | 作用 |
+| --- | --- |
+| `func.count(Book.id)` | 统计行数 |
+| `func.avg(Book.price)` | 求平均值 |
+| `func.max(Book.price)` | 求最大值 |
+| `func.min(Book.price)` | 求最小值 |
+| `func.sum(Book.price)` | 求和 |
+
+当前代码示例返回最高价格：
+
+```python
+@app.get("/book/count")
+async def get_count(db: AsyncSession = Depends(get_database)):
+    result = await db.execute(select(func.max(Book.price)))
+    num = result.scalar()
+    return num
+```
+
+这里使用 `scalar()`，因为聚合查询返回的是一个标量值，而不是一组 ORM 对象。
+
+### 分页查询
+
+分页查询核心是：
+
+```text
+select().offset().limit()
+```
+
+其中：
+
+- `offset`：跳过的记录数
+- `limit`：返回的记录数
+
+计算公式：
+
+```text
+offset = (当前页码 - 1) * 每页数量
+```
+
+例如每页 10 条：
+
+| 当前页码 | 每页数量 limit | 跳过数量 offset |
+| --- | --- | --- |
+| 1 | 10 | 0 |
+| 2 | 10 | 10 |
+| 3 | 10 | 20 |
+| 4 | 10 | 30 |
+
+当前分页接口：
+
+```python
+@app.get("/book/get_book_list")
+async def get_book_list(
+    page: int = 1,
+    page_size: int = 3,
+    db: AsyncSession = Depends(get_database)
+):
+    skip = (page - 1) * page_size
+    result = await db.execute(select(Book).order_by(Book.id).offset(skip).limit(page_size))
+    books = result.scalars().all()
+    return books
+```
+
+访问：
+
+```text
+http://127.0.0.1:8000/book/get_book_list?page=1&page_size=3
+http://127.0.0.1:8000/book/get_book_list?page=2&page_size=3
+```
+
+注意：查询多条 ORM 对象时使用 `scalars().all()`；聚合查询等单个标量值使用 `scalar()`。
+
+### 新增数据
+
+数据库新增的核心步骤：
+
+```text
+定义请求体模型 -> 创建 ORM 对象 -> add(对象) -> commit 提交到数据库
+```
+
+当前请求体模型：
+
+```python
+class BookBase(BaseModel):
+    id: int
+    bookname: str
+    author: str
+    price: float
+    publisher: str
+```
+
+新增接口：
+
+```python
+@app.post("/book/add_book")
+async def add_book(book: BookBase, db: AsyncSession = Depends(get_database)):
+    book_obj = Book(**book.__dict__)
+    db.add(book_obj)
+    await db.commit()
+    return book
+```
+
+测试请求体：
 
 ```json
 {
-  "message": "hello world"
+  "id": 11,
+  "bookname": "骆驼祥子",
+  "author": "老舍",
+  "price": 49,
+  "publisher": "人民文学出版社"
 }
 ```
 
-如果数据库连接串正确，启动阶段会自动创建 `book` 表。这个示例目前主要用于学习“模型定义 + 自动建表”，还没有写新增、查询、修改、删除接口。
+### 更新数据
+
+数据库更新的核心步骤：
+
+```text
+先 get 查询 -> 属性重新赋值 -> commit 提交到数据库
+```
+
+当前接口：
+
+```python
+@app.put("/book/update_book/{book_id}")
+async def update_book(book_id: int, data: BookUpdate, db: AsyncSession = Depends(get_database)):
+    db_book = await db.get(Book, book_id)
+    if db_book is None:
+        raise HTTPException(status_code=404, detail="查无此书")
+
+    db_book.bookname = data.bookname
+    db_book.author = data.author
+    db_book.price = data.price
+    db_book.publisher = data.publisher
+
+    await db.commit()
+    return db_book
+```
+
+访问：
+
+```text
+PUT http://127.0.0.1:8000/book/update_book/1
+```
+
+请求体：
+
+```json
+{
+  "bookname": "Python ORM 实战",
+  "author": "yuan",
+  "price": 128,
+  "publisher": "学习出版社"
+}
+```
+
+### 删除数据
+
+数据库删除的核心步骤：
+
+```text
+先 get 查询 -> delete 删除 -> commit 提交到数据库
+```
+
+当前接口：
+
+```python
+@app.delete("/book/delete_book/{book_id}")
+async def delete_book(book_id: int, db: AsyncSession = Depends(get_database)):
+    db_book = await db.get(Book, book_id)
+    if db_book is None:
+        raise HTTPException(status_code=404, detail="查无此书")
+
+    await db.delete(db_book)
+    await db.commit()
+    return {"message": "删除成功"}
+```
+
+访问：
+
+```text
+DELETE http://127.0.0.1:8000/book/delete_book/11
+```
+
+### ORM 查询总结
+
+从 ORM 对象获取数据的常用方式：
+
+| 写法 | 作用 | 常见场景 |
+| --- | --- | --- |
+| `scalars().all()` | 获取所有 ORM 对象 | 查询列表 |
+| `scalars().first()` | 获取第一条 ORM 对象 | 查询单条，允许没有结果 |
+| `scalar_one_or_none()` | 获取一个对象或 `None` | 期望最多一条结果 |
+| `scalar()` | 获取标量值 | 聚合查询，例如 `count`、`max` |
+
+整个 ORM 操作可以概括为：
+
+```text
+查询：select()
+新增：add()
+更新：先查再改，重新赋值
+删除：delete()
+提交：commit()
+```
