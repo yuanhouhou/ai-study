@@ -7,12 +7,14 @@
 - `middleware.py`：中间件的定义和多个中间件的执行顺序示例
 - `depends.py`：依赖注入系统示例，复用分页查询参数逻辑
 - `orm_01.py`：SQLAlchemy 异步 ORM 示例，包含建表、查询、分页、新增、更新、删除
+- `toutiao_backend/`：模块化路由示例，把业务接口拆分到 `routers/` 后再挂载到主应用
 
 ## 目录
 
 - [怎么运行 FastAPI 项目](#怎么运行-fastapi-项目)
 - [怎么访问交互式文档](#怎么访问交互式文档)
 - [路由是什么](#路由是什么)
+- [模块化路由](#模块化路由)
 - [参数的作用](#参数的作用)
 - [参数分类](#参数分类)
 - [路径参数](#路径参数)
@@ -77,6 +79,13 @@ uvicorn fastapi_file.orm_01:app --reload --app-dir ".\01_GitHub仓库文件"
 
 ```powershell
 uvicorn fastapi_file.orm_01:app --reload
+```
+
+如果要运行模块化路由示例：
+
+```powershell
+cd .\01_GitHub仓库文件\fastapi_file\toutiao_backend
+python -m uvicorn main:app --reload
 ```
 
 其中：
@@ -152,6 +161,118 @@ async def get_hello():
 ```
 
 这里的 `@app.get("/fastapi")` 就是把 URL `/fastapi` 和函数 `get_hello` 绑定起来。
+
+## 模块化路由
+
+当项目变大以后，如果所有接口都写在 `main.py` 里，文件会越来越长，业务代码也容易混在一起。模块化路由就是把每个业务功能的接口拆分到独立文件里，再统一挂载到主应用中。
+
+模块化路由的好处：
+
+- 项目结构更清晰：不同业务接口放到不同文件，不会全部堆在 `main.py`
+- 更容易维护：每个模块只负责自己的接口，查找和修改更方便
+- 避免 `main.py` 爆炸：`main.py` 主要负责创建应用、挂载路由和启动服务
+
+当前 `toutiao_backend` 示例目录：
+
+```text
+toutiao_backend/
+├── main.py
+└── routers/
+    └── news.py
+```
+
+### 编写独立路由模块
+
+在 `routers/news.py` 中先创建 `APIRouter` 实例：
+
+```python
+from fastapi import APIRouter
+
+# 创建 APIRouter 实例
+router = APIRouter(prefix="/api/news", tags=["news"])
+
+@router.get("/news")
+async def get_categors():
+    return {
+        "message": "获取分类成功"
+    }
+```
+
+这里的关键点：
+
+- `APIRouter`：创建一个独立路由模块
+- `prefix="/api/news"`：给这个模块下所有接口统一添加路径前缀
+- `tags=["news"]`：在 `/docs` 文档中把接口归到 `news` 分组
+- `@router.get("/news")`：这里用的是 `router`，不是 `app`
+
+最终访问路径由 `prefix` 和接口路径拼接得到：
+
+```text
+/api/news + /news = /api/news/news
+```
+
+### 在 main.py 中挂载路由
+
+在 `main.py` 中导入路由模块，并通过 `include_router()` 注册到主应用：
+
+```python
+from fastapi import FastAPI
+from routers import news
+
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    return {
+        "message": "hello world"
+    }
+
+# 挂载路由/注册路由
+app.include_router(news.router)
+```
+
+这里的核心是：
+
+```python
+app.include_router(news.router)
+```
+
+它的意思是：把 `routers/news.py` 里定义好的 `router` 挂载到当前 FastAPI 主应用里。
+
+如果出现：
+
+```text
+AttributeError: module 'routers.news' has no attribute 'router'
+```
+
+通常表示 `routers/news.py` 中没有定义下面这个变量，或者保存到了别的文件：
+
+```python
+router = APIRouter(...)
+```
+
+### 运行和访问
+
+启动模块化路由示例：
+
+```powershell
+cd .\01_GitHub仓库文件\fastapi_file\toutiao_backend
+python -m uvicorn main:app --reload
+```
+
+访问根路径：
+
+```text
+http://127.0.0.1:8000/
+```
+
+访问新闻模块接口：
+
+```text
+http://127.0.0.1:8000/api/news/news
+```
+
+在 `/docs` 中也可以看到 `news` 分组下的接口。
 
 ## 参数的作用
 
