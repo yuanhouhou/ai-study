@@ -9,12 +9,19 @@
 - `orm_01.py`：SQLAlchemy 异步 ORM 示例，包含建表、查询、分页、新增、更新、删除
 - `toutiao_backend/`：模块化路由示例，把业务接口拆分到 `routers/` 后再挂载到主应用
 
+README 分工：
+
+- 本文件：作为 FastAPI 学习和知识总结 README，记录概念、示例、常见写法和学习路线。
+- `toutiao_backend/README.md`：作为项目实操 README，记录新闻后端项目的功能、数据库、接口、运行方式和实操经验。
+
 ## 目录
 
 - [怎么运行 FastAPI 项目](#怎么运行-fastapi-项目)
 - [怎么访问交互式文档](#怎么访问交互式文档)
 - [路由是什么](#路由是什么)
 - [模块化路由](#模块化路由)
+  - [接口实现流程](#接口实现流程)
+  - [学习 README 和项目 README 的分工](#学习-readme-和项目-readme-的分工)
 - [参数的作用](#参数的作用)
 - [参数分类](#参数分类)
 - [路径参数](#路径参数)
@@ -28,6 +35,7 @@
 - [中间件](#中间件)
 - [依赖注入](#依赖注入)
 - [ORM 简介](#orm-简介)
+- [SQLAlchemy 2.x 常用导入](#sqlalchemy-2x-常用导入)
 - [SQLAlchemy 异步 ORM 建表示例](#sqlalchemy-异步-orm-建表示例)
   - [连接串来源](#连接串来源)
   - [异步引擎和会话](#异步引擎和会话)
@@ -273,6 +281,47 @@ http://127.0.0.1:8000/api/news/news
 ```
 
 在 `/docs` 中也可以看到 `news` 分组下的接口。
+
+### 接口实现流程
+
+项目实操中，一个连接数据库的接口通常可以按下面的顺序实现：
+
+```text
+模块化路由 -> 定义模型类 -> 数据库 CRUD -> 路由调用逻辑
+```
+
+对应到 `toutiao_backend`：
+
+| 步骤 | 位置 | 作用 |
+| --- | --- | --- |
+| 模块化路由 | `routers/news.py` | 使用 `APIRouter` 定义接口路径、分组和请求参数 |
+| 定义模型类 | `models/news.py` | 使用 SQLAlchemy ORM 类映射数据库表 |
+| 数据库 CRUD | `crud/news.py` | 封装 `select()`、`add()`、`update()`、`delete()` 等数据库操作 |
+| 路由调用逻辑 | `routers/news.py` | 使用 `Depends` 注入数据库会话，调用 CRUD 并返回结果 |
+
+以新闻分类列表为例：
+
+```text
+GET /api/news/news
+-> routers/news.py 接收 skip、limit
+-> Depends(get_db) 提供 AsyncSession
+-> crud/news.py 执行 select(Category)
+-> models/news.py 映射 news_category 表
+-> 返回分类列表
+```
+
+这样拆分后，路由层负责接口，CRUD 层负责数据库操作，模型层负责表结构映射，代码边界更清楚。
+
+### 学习 README 和项目 README 的分工
+
+学习阶段建议把 README 分成两类：
+
+| README | 定位 | 主要内容 |
+| --- | --- | --- |
+| `fastapi_file/README.md` | 学习和知识总结 | FastAPI 概念、语法、示例、常见问题 |
+| `toutiao_backend/README.md` | 项目实操记录 | 项目功能、数据库、接口、运行方式、实操复盘 |
+
+这样做的好处是：学习笔记可以持续沉淀通用知识，项目 README 可以聚焦项目本身，不会把概念教程和项目说明混在一起。
 
 ## 参数的作用
 
@@ -956,6 +1005,75 @@ FastAPI + SQLAlchemy + asyncmy
 - `SQLAlchemy`：ORM 工具
 - `asyncmy`：异步 MySQL 数据库驱动
 - `run_sync(Base.metadata.create_all)`：常用于异步环境中创建数据库表
+
+## SQLAlchemy 2.x 常用导入
+
+SQLAlchemy 2.x 把 ORM 相关对象和异步数据库对象放在不同模块中。写 FastAPI + SQLAlchemy 异步 ORM 时，导入位置要分清楚。
+
+ORM 模型常用导入：
+
+```python
+from sqlalchemy import DateTime, Integer, String
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+```
+
+其中：
+
+- `DeclarativeBase`：声明 ORM 基类
+- `Mapped`：声明模型字段的 Python 类型
+- `mapped_column`：声明数据库字段类型、约束和注释
+
+异步数据库连接常用导入：
+
+```python
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+```
+
+其中：
+
+- `create_async_engine`：创建异步数据库引擎
+- `async_sessionmaker`：创建异步会话工厂
+- `AsyncSession`：异步数据库会话类型
+
+常见错误：
+
+```python
+from sqlalchemy import DeclarativeBase, Mapped, mapped_column
+```
+
+如果这样写后出现：
+
+```text
+ImportError: cannot import name 'DeclarativeBase' from 'sqlalchemy'
+```
+
+原因通常不是 SQLAlchemy 版本一定太旧，而是导入位置不对。应该改成：
+
+```python
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+```
+
+字段定义推荐写法：
+
+```python
+class Category(Base):
+    __tablename__ = "news_category"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(50), nullable=False)
+```
+
+注意不要写成：
+
+```python
+sort_order = Mapped[int] = mapped_column(Integer)
+```
+
+正确写法应该是类型标注：
+
+```python
+sort_order: Mapped[int] = mapped_column(Integer)
+```
 
 ## SQLAlchemy 异步 ORM 建表示例
 
