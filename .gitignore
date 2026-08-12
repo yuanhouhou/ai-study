@@ -19,6 +19,7 @@ AGENTS.md
 .npm-cache*/
 node_modules/
 dist/
+01_GitHub仓库文件/fastapi_file/toutiao_backend/qianduan/src/config/
 
 # Local-only top-level work areas
 02_组会资料/
