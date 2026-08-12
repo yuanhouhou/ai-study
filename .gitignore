@@ -17,6 +17,8 @@ AGENTS.md
 .codex_deps/
 .npm-caches/
 .npm-cache*/
+node_modules/
+dist/
 
 # Local-only top-level work areas
 02_组会资料/
