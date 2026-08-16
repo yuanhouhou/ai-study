@@ -219,6 +219,18 @@ async def get_categors():
 /api/news + /news = /api/news/news
 ```
 
+在当前 `toutiao_backend` 项目中，分类接口已经改成更语义化的：
+
+```python
+@router.get("/categories")
+```
+
+所以实际分类接口路径是：
+
+```text
+/api/news/categories
+```
+
 ### 在 main.py 中挂载路由
 
 在 `main.py` 中导入路由模块，并通过 `include_router()` 注册到主应用：
@@ -277,7 +289,7 @@ http://127.0.0.1:8000/
 访问新闻模块接口：
 
 ```text
-http://127.0.0.1:8000/api/news/news
+http://127.0.0.1:8000/api/news/categories
 ```
 
 在 `/docs` 中也可以看到 `news` 分组下的接口。
@@ -302,7 +314,7 @@ http://127.0.0.1:8000/api/news/news
 以新闻分类列表为例：
 
 ```text
-GET /api/news/news
+GET /api/news/categories
 -> routers/news.py 接收 skip、limit
 -> Depends(get_db) 提供 AsyncSession
 -> crud/news.py 执行 select(Category)
@@ -455,6 +467,40 @@ http://127.0.0.1:8000/book_info/book_list?category=Python开发&price=80
 
 - `category`：图书分类，默认值是 `Python开发`，长度限制 `5 ~ 255`
 - `price`：图书价格，范围限制 `50 ~ 100`
+
+### 查询参数别名 alias
+
+当前 `toutiao_backend` 项目里，前端参数通常使用小驼峰或简短名称，例如：
+
+```text
+/api/news/list?categoryId=1&page=1&pageSize=10
+/api/news/detail?id=2
+```
+
+Python 变量名更适合写成下划线风格，所以可以用 `Query(..., alias="前端参数名")` 做映射：
+
+```python
+@router.get("/list")
+async def get_news_detail(
+    category_id: int = Query(..., alias="categoryId"),
+    page_size: int = Query(10, alias="pageSize")
+):
+    ...
+```
+
+这里客户端传 `categoryId`，函数内部使用 `category_id`。
+
+详情接口同理：
+
+```python
+@router.get("/detail")
+async def get_news_list(
+    news_id: int = Query(..., alias="id")
+):
+    ...
+```
+
+注意：Swagger 会把函数签名里每一个 `Query` 参数都显示出来。如果为了兼容大小写同时写 `id` 和 `Id` 两个参数，文档页面就会出现两个输入框。项目里统一使用小写 `id` 后，只需要保留一个参数。
 
 ## 同步和异步接口耗时对比
 
@@ -1471,6 +1517,23 @@ PUT http://127.0.0.1:8000/book/update_book/1
   "publisher": "学习出版社"
 }
 ```
+
+如果使用 SQLAlchemy 的 `update()` 语句直接更新数据，可以通过 `rowcount` 判断是否真的命中了记录。
+
+例如新闻详情页浏览量加 1：
+
+```python
+stmt = (
+    update(News)
+    .where(News.id == news_id)
+    .values(views=News.views + 1)
+)
+result = await db.execute(stmt)
+await db.commit()
+return result.rowcount > 0
+```
+
+这里的 `return result.rowcount > 0` 很重要。否则函数执行完默认返回 `None`，如果路由层写了 `if not views_res:`，就会误判为更新失败，可能返回 404。
 
 ### 删除数据
 
