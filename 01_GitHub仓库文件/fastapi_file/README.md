@@ -31,6 +31,7 @@ README 分工：
 - [请求体字段校验](#请求体字段校验)
 - [响应类型](#响应类型)
 - [响应数据模型](#响应数据模型)
+- [用户注册和 Token](#用户注册和-token)
 - [异常处理](#异常处理)
 - [中间件](#中间件)
 - [依赖注入](#依赖注入)
@@ -756,6 +757,116 @@ async def get_news(id: int):
 response_model：控制返回数据格式
 response_class：控制响应内容类型
 ```
+
+## 用户注册和 Token
+
+当前 `toutiao_backend` 项目实现了用户注册接口：
+
+```text
+POST /api/user/register
+```
+
+请求体使用 Pydantic 模型接收：
+
+```python
+class UserRequest(BaseModel):
+    username: str
+    password: str
+```
+
+注册接口的核心流程可以拆成：
+
+```text
+进入请求 -> 根据 username 查询用户 -> 不存在则创建用户 -> 生成 Token -> 返回响应结果
+```
+
+其中用户名查询使用：
+
+```python
+query = select(User).where(User.username == username)
+result = await db.execute(query)
+return result.scalar_one_or_none()
+```
+
+创建用户时先加密密码，再写入数据库：
+
+```python
+hashed_password = security.get_hash_password(user_data.password)
+user = User(username=user_data.username, password=hashed_password)
+db.add(user)
+await db.commit()
+await db.refresh(user)
+```
+
+Token 是服务器发给客户端的一段字符串，用来让客户端在后续请求中证明“我已经登录过”。当前项目使用 `uuid.uuid4()` 生成临时 Token：
+
+```python
+token = str(uuid.uuid4())
+expires_at = datetime.now() + timedelta(days=7)
+```
+
+如果用户已经有 Token，就更新原来的 Token；如果没有，就新增一条 `user_token` 记录。更新和新增后都要 `commit()`，否则数据不会真正保存到数据库。
+
+### 密码加密
+
+当前项目使用 `bcrypt` 加密密码：
+
+```python
+password_bytes = password.encode("utf-8")
+hashed_password = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+return hashed_password.decode("utf-8")
+```
+
+bcrypt 对原始密码有 72 bytes 限制。这里是字节数，不是字符数。英文数字通常一个字符 1 byte，中文通常一个字符 3 bytes。
+
+如果使用 `passlib + bcrypt` 时短密码也误报：
+
+```text
+ValueError: password cannot be longer than 72 bytes
+```
+
+可能是依赖版本兼容问题。当前项目绕开 `passlib`，直接使用 `bcrypt.hashpw()`。
+
+### 统一响应结构
+
+为了让前端处理接口更稳定，可以统一返回：
+
+```json
+{
+  "code": 200,
+  "message": "注册成功",
+  "data": {}
+}
+```
+
+当前项目封装了：
+
+```python
+def success_response(message: str = "success", data=None):
+    content = {
+        "code": 200,
+        "message": message,
+        "data": data,
+    }
+    return JSONResponse(content=jsonable_encoder(content))
+```
+
+`jsonable_encoder()` 可以把 Pydantic 模型、ORM 对象等转换成 JSON 可以序列化的数据。
+
+注册接口返回数据使用 Pydantic 响应模型组织：
+
+```python
+class UserAuthResponse(BaseModel):
+    token: str
+    user_info: UserInfoResponse = Field(..., alias="userInfo")
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        from_attributes=True,
+    )
+```
+
+这里的 `alias="userInfo"` 表示 Python 内部字段叫 `user_info`，但返回给前端时使用 `userInfo`。
 
 ## 异常处理
 

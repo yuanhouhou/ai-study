@@ -23,12 +23,19 @@
 - 连接 MySQL 异步数据库
 - 使用 SQLAlchemy 2.x ORM 定义 `news_category` 分类模型
 - 使用 SQLAlchemy 2.x ORM 定义 `news` 新闻模型
+- 使用 SQLAlchemy 2.x ORM 定义 `user` 和 `user_token` 用户模型
 - 封装分类列表查询 CRUD
 - 封装新闻列表、新闻数量、新闻详情、浏览量自增、相关新闻查询 CRUD
+- 封装用户查询、用户创建、Token 创建或更新 CRUD
+- 使用 `bcrypt` 对注册密码加密存储
+- 使用 `uuid.uuid4()` 生成临时访问令牌 Token
+- 使用 Pydantic 定义注册请求和用户认证响应模型
+- 封装 `success_response()` 统一接口响应结构
 - 实现新闻分类列表接口
 - 实现按分类分页查询新闻列表接口
 - 实现新闻详情接口，并在进入详情页时浏览量加 1
 - 实现同分类相关新闻推荐
+- 实现用户注册接口：检查用户名是否存在，不存在则创建用户并返回 Token
 - 导入新闻资讯项目数据库 `news_app`
 
 当前接口：
@@ -39,6 +46,7 @@
 | `GET` | `/api/news/categories` | 获取新闻分类列表，支持 `skip` 和 `limit` 分页参数 |
 | `GET` | `/api/news/list` | 按分类分页获取新闻列表，参数为 `categoryId`、`page`、`pageSize` |
 | `GET` | `/api/news/detail` | 获取新闻详情，参数为 `id`；成功后浏览量自动加 1，并返回相关新闻 |
+| `POST` | `/api/user/register` | 用户注册，提交 `username`、`password`，成功后返回 Token 和用户信息 |
 
 ## 技术栈
 
@@ -49,7 +57,9 @@
 | SQLAlchemy 2.x | ORM 模型和数据库查询 |
 | asyncmy | 异步 MySQL 驱动 |
 | MySQL 8.0 | 项目数据库 |
-| Pydantic | 后续用于请求体和响应模型校验 |
+| Pydantic | 请求体和响应模型校验 |
+| bcrypt | 密码哈希加密 |
+| uuid | 生成临时访问令牌 Token |
 
 ## 目录结构
 
@@ -61,13 +71,19 @@ toutiao_backend/
 ├── config/
 │   └── db_conf.py         # 异步数据库连接和会话依赖
 ├── crud/
-│   └── news.py            # 新闻相关数据库操作
+│   ├── news.py            # 新闻相关数据库操作
+│   └── users.py           # 用户注册和 Token 相关数据库操作
 ├── models/
-│   └── news.py            # SQLAlchemy ORM 模型
+│   ├── news.py            # 新闻相关 SQLAlchemy ORM 模型
+│   └── users.py           # 用户和 Token SQLAlchemy ORM 模型
 ├── routers/
-│   └── news.py            # 新闻模块接口路由
-├── schemas/               # 预留：Pydantic 请求/响应模型
-└── utils/                 # 预留：通用工具函数
+│   ├── news.py            # 新闻模块接口路由
+│   └── users.py           # 用户模块接口路由
+├── schemas/
+│   └── users.py           # 用户请求和响应 Pydantic 模型
+└── utils/
+    ├── response.py        # 统一响应结构
+    └── security.py        # 密码加密和校验
 ```
 
 ## 数据库说明
@@ -202,6 +218,41 @@ http://127.0.0.1:8000/api/news/list?categoryId=1&page=1&pageSize=10
 http://127.0.0.1:8000/api/news/detail?id=2
 ```
 
+用户注册接口示例：
+
+```text
+POST http://127.0.0.1:8000/api/user/register
+```
+
+请求体：
+
+```json
+{
+  "username": "example_user",
+  "password": "123"
+}
+```
+
+成功响应结构：
+
+```json
+{
+  "code": 200,
+  "message": "注册成功",
+  "data": {
+    "token": "uuid生成的访问令牌",
+    "userInfo": {
+      "id": 1,
+      "username": "example_user",
+      "nickname": null,
+      "avatar": "https://fastly.jsdelivr.net/npm/@vant/assets/cat.jpeg",
+      "gender": "unknown",
+      "bio": "这个人很懒，什么都没留下"
+    }
+  }
+}
+```
+
 ## 接口实现流程
 
 ### 1. 模块化路由
@@ -214,6 +265,12 @@ router = APIRouter(prefix="/api/news", tags=["news"])
 
 `prefix` 表示统一路径前缀，`tags` 用于在 `/docs` 文档中分组。
 
+用户模块使用独立路由前缀：
+
+```python
+router = APIRouter(prefix="/api/user", tags=["users"])
+```
+
 ### 2. 定义模型类
 
 在 `models/news.py` 中用 SQLAlchemy 2.x 写 ORM 模型：
@@ -224,6 +281,12 @@ class Category(Base):
 
 class News(Base):
     __tablename__ = "news"
+
+class User(Base):
+    __tablename__ = "user"
+
+class UserToken(Base):
+    __tablename__ = "user_token"
 ```
 
 模型类和数据库表对应，类属性和字段对应。
@@ -266,6 +329,29 @@ return result.rowcount > 0
 
 这里返回 `result.rowcount > 0` 很关键：它表示本次更新是否真的命中了新闻记录。
 
+用户注册接口的核心 CRUD 流程：
+
+```text
+select(User).where(User.username == username)
+-> 用户存在：抛出 400
+-> 用户不存在：加密密码，创建 User
+-> uuid.uuid4() 生成 Token
+-> user_token 表新增或更新 Token
+```
+
+密码加密使用 `bcrypt.hashpw()`：
+
+```python
+password_bytes = password.encode("utf-8")
+hashed_password = bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+```
+
+Token 有效期当前设置为 7 天：
+
+```python
+expires_at = datetime.now() + timedelta(days=7)
+```
+
 ### 4. 路由调用逻辑
 
 在 `routers/news.py` 中通过 `Depends(get_db)` 获取数据库会话，然后调用 CRUD：
@@ -294,6 +380,24 @@ async def get_news_list(
 ```
 
 如果把参数名写成 `Id` 或其他大小写，FastAPI 会认为缺少必填参数。
+
+注册接口使用请求体参数：
+
+```python
+class UserRequest(BaseModel):
+    username: str
+    password: str
+```
+
+响应数据通过 Pydantic 模型组织，再交给统一响应函数：
+
+```python
+response_data = UserAuthResponse(
+    token=token,
+    user_info=UserInfoResponse.model_validate(user),
+)
+return success_response(message="注册成功", data=response_data)
+```
 
 ## 已解决的问题
 
@@ -355,6 +459,66 @@ return result.rowcount > 0
 news_id: int = Query(..., alias="id")
 ```
 
+### 注册时 bcrypt 误报 72 bytes
+
+问题表现：
+
+```text
+ValueError: password cannot be longer than 72 bytes
+```
+
+如果密码确实超过 72 bytes，这是 bcrypt 的算法限制。但本项目中曾经出现过密码为 `123` 也报这个错误，原因是 `passlib` 和新版 `bcrypt` 的兼容问题。
+
+当前处理方式是直接使用 `bcrypt`：
+
+```python
+bcrypt.hashpw(password_bytes, bcrypt.gensalt())
+```
+
+同时在加密前显式检查字节长度：
+
+```python
+if len(password_bytes) > 72:
+    raise ValueError("密码不能超过72字节")
+```
+
+### datetime.now 导入方式错误
+
+如果写了：
+
+```python
+import datetime
+expires_at = datetime.now()
+```
+
+会报：
+
+```text
+AttributeError: module 'datetime' has no attribute 'now'
+```
+
+因为此时 `datetime` 是模块，正确写法之一是：
+
+```python
+from datetime import datetime, timedelta
+expires_at = datetime.now() + timedelta(days=7)
+```
+
+### success_response 导入失败
+
+如果出现：
+
+```text
+ImportError: cannot import name 'success_response' from 'utils.response'
+```
+
+说明 `utils/response.py` 中没有定义同名函数，或者文件还没保存到当前运行的后端环境。当前项目已在 `utils/response.py` 中定义：
+
+```python
+def success_response(message: str = "success", data=None):
+    ...
+```
+
 ## 实操经验总结
 
 - 先建数据库和表，再写 ORM 模型，模型字段要参考真实表结构。
@@ -364,11 +528,13 @@ news_id: int = Query(..., alias="id")
 - 查询列表常用 `result.scalars().all()`，查询单条常用 `result.scalars().first()`。
 - 详情查询这类“最多一条”的场景，可以使用 `scalar_one_or_none()`。
 - `update()` 之后如果路由层要判断成功失败，应检查 `rowcount`，不要依赖没有返回值的函数。
+- 注册、登录这类接口建议统一返回 `code`、`message`、`data`，前端处理会更稳定。
+- Token 是后端发给前端的访问令牌，前端保存后可以在后续请求中携带，用来证明“已经登录过”。
+- ORM 字段默认时间建议传 `datetime.now` 函数本身，不要写成 `datetime.now()`，避免所有记录共用导入时的时间。
 - `.env` 只保存本地密钥和连接串，README 只能写示例，不能写真实密码。
 
 ## 后续计划
 
-- 补充 `schemas/` 中的 Pydantic 响应模型
+- 实现用户登录接口，校验密码并返回 Token
 - 实现收藏、浏览历史等用户行为接口
-- 为接口返回统一响应结构
 - 增加常见错误处理，例如分类不存在、新闻不存在
