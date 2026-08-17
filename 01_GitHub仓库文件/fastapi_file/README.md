@@ -32,6 +32,7 @@ README 分工：
 - [响应类型](#响应类型)
 - [响应数据模型](#响应数据模型)
 - [用户注册和 Token](#用户注册和-token)
+- [登录态依赖和用户行为接口](#登录态依赖和用户行为接口)
 - [异常处理](#异常处理)
 - [中间件](#中间件)
 - [依赖注入](#依赖注入)
@@ -867,6 +868,62 @@ class UserAuthResponse(BaseModel):
 ```
 
 这里的 `alias="userInfo"` 表示 Python 内部字段叫 `user_info`，但返回给前端时使用 `userInfo`。
+
+## 登录态依赖和用户行为接口
+
+注册和登录接口返回 Token 后，前端可以在后续请求中通过请求头携带 Token：
+
+```text
+Authorization: uuid生成的访问令牌
+```
+
+后端可以把“解析 Token -> 查询用户 -> 判断是否有效”封装成依赖项：
+
+```python
+async def get_current_user(
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    db: AsyncSession = Depends(get_db)
+):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="未登录")
+
+    token = authorization.replace("Bearer ", "")
+    user = await users.get_user_by_token(db, token)
+    if not user:
+        raise HTTPException(status_code=401, detail="无效令牌或已过期的令牌")
+
+    return user
+```
+
+需要登录态的接口只要写：
+
+```python
+user: User = Depends(get_current_user)
+```
+
+这样路由函数就能直接拿到当前用户，不需要每个接口重复写 Token 校验逻辑。
+
+用户行为类接口，例如收藏、浏览历史、个人资料修改，通常都需要同时满足两个条件：
+
+- 请求中带有有效 Token，能确定当前用户是谁。
+- 数据操作必须带上 `user_id` 条件，避免修改或删除其他用户的数据。
+
+收藏接口的常见流程：
+
+```text
+检查收藏：按 user_id + news_id 查询 favorite 表
+添加收藏：写入 user_id + news_id
+取消收藏：按 user_id + news_id 删除，并用 rowcount 判断是否真的删除成功
+```
+
+前端字段名和 Python 字段名不一致时，可以用 Pydantic 的 `alias`：
+
+```python
+class FavoriteAddRequest(BaseModel):
+    news_id: int = Field(..., alias="newsId")
+```
+
+这样前端传 `newsId`，后端代码里仍然使用更符合 Python 风格的 `news_id`。
 
 ## 异常处理
 

@@ -1,11 +1,16 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import news, users
-
+from routers import news, users,favorite
+from utils.exception_handlers import register_exception_handlers
 
 app = FastAPI()
 
+
+#注册异常处理器
+register_exception_handlers(app)
+
+#增加CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # 允许的源，开发阶段允许所有，生产环境需要指定源
@@ -24,6 +29,7 @@ async def root():
 # 挂载路由/注册路由
 app.include_router(news.router)
 app.include_router(users.router)
+app.include_router(favorite.router)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

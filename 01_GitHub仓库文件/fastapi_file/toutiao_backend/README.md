@@ -26,16 +26,24 @@
 - 使用 SQLAlchemy 2.x ORM 定义 `user` 和 `user_token` 用户模型
 - 封装分类列表查询 CRUD
 - 封装新闻列表、新闻数量、新闻详情、浏览量自增、相关新闻查询 CRUD
-- 封装用户查询、用户创建、Token 创建或更新 CRUD
+- 封装用户查询、用户创建、Token 创建或更新、用户信息更新、密码修改 CRUD
+- 封装收藏状态查询、添加收藏、取消收藏 CRUD
 - 使用 `bcrypt` 对注册密码加密存储
 - 使用 `uuid.uuid4()` 生成临时访问令牌 Token
-- 使用 Pydantic 定义注册请求和用户认证响应模型
+- 使用 Pydantic 定义用户认证、用户资料更新、修改密码和收藏接口请求/响应模型
 - 封装 `success_response()` 统一接口响应结构
+- 注册全局异常处理器，统一处理业务异常、数据库完整性异常和服务器内部异常
+- 抽取 `get_current_user()` 依赖，通过 `Authorization` 请求头校验 Token 并获取当前用户
 - 实现新闻分类列表接口
 - 实现按分类分页查询新闻列表接口
 - 实现新闻详情接口，并在进入详情页时浏览量加 1
 - 实现同分类相关新闻推荐
 - 实现用户注册接口：检查用户名是否存在，不存在则创建用户并返回 Token
+- 实现用户登录接口：校验密码并返回 Token
+- 实现获取当前用户信息接口
+- 实现修改用户资料接口
+- 实现修改密码接口
+- 实现收藏状态检查、添加收藏、取消收藏接口
 - 导入新闻资讯项目数据库 `news_app`
 
 当前接口：
@@ -47,6 +55,13 @@
 | `GET` | `/api/news/list` | 按分类分页获取新闻列表，参数为 `categoryId`、`page`、`pageSize` |
 | `GET` | `/api/news/detail` | 获取新闻详情，参数为 `id`；成功后浏览量自动加 1，并返回相关新闻 |
 | `POST` | `/api/user/register` | 用户注册，提交 `username`、`password`，成功后返回 Token 和用户信息 |
+| `POST` | `/api/user/login` | 用户登录，提交 `username`、`password`，成功后返回 Token 和用户信息 |
+| `GET` | `/api/user/info` | 获取当前登录用户信息，需要 `Authorization` 请求头 |
+| `PUT` | `/api/user/update` | 修改当前用户资料，需要 `Authorization` 请求头 |
+| `PUT` | `/api/user/password` | 修改当前用户密码，需要 `Authorization` 请求头 |
+| `GET` | `/api/favorite/check` | 检查新闻是否已收藏，参数为 `newsId`，需要 `Authorization` 请求头 |
+| `POST` | `/api/favorite/add` | 添加收藏，请求体参数为 `newsId`，需要 `Authorization` 请求头 |
+| `DELETE` | `/api/favorite/remove` | 取消收藏，参数为 `newsId`，需要 `Authorization` 请求头 |
 
 ## 技术栈
 
@@ -71,17 +86,24 @@ toutiao_backend/
 ├── config/
 │   └── db_conf.py         # 异步数据库连接和会话依赖
 ├── crud/
+│   ├── favorite.py        # 收藏相关数据库操作
 │   ├── news.py            # 新闻相关数据库操作
-│   └── users.py           # 用户注册和 Token 相关数据库操作
+│   └── users.py           # 用户认证、资料和 Token 相关数据库操作
 ├── models/
+│   ├── favorite.py        # 收藏 SQLAlchemy ORM 模型
 │   ├── news.py            # 新闻相关 SQLAlchemy ORM 模型
 │   └── users.py           # 用户和 Token SQLAlchemy ORM 模型
 ├── routers/
+│   ├── favorite.py        # 收藏模块接口路由
 │   ├── news.py            # 新闻模块接口路由
 │   └── users.py           # 用户模块接口路由
 ├── schemas/
+│   ├── favorite.py        # 收藏请求和响应 Pydantic 模型
 │   └── users.py           # 用户请求和响应 Pydantic 模型
 └── utils/
+    ├── auth.py            # Token 认证依赖
+    ├── exception.py       # 全局异常处理函数
+    ├── exception_handlers.py # 异常处理器注册入口
     ├── response.py        # 统一响应结构
     └── security.py        # 密码加密和校验
 ```
@@ -253,6 +275,79 @@ POST http://127.0.0.1:8000/api/user/register
 }
 ```
 
+用户登录接口示例：
+
+```text
+POST http://127.0.0.1:8000/api/user/login
+```
+
+请求体：
+
+```json
+{
+  "username": "example_user",
+  "password": "123"
+}
+```
+
+后续需要登录态的接口，都要在请求头中携带登录或注册返回的 Token：
+
+```text
+Authorization: uuid生成的访问令牌
+```
+
+获取当前用户信息：
+
+```text
+GET http://127.0.0.1:8000/api/user/info
+```
+
+修改用户资料：
+
+```text
+PUT http://127.0.0.1:8000/api/user/update
+```
+
+请求体示例：
+
+```json
+{
+  "nickname": "yuan",
+  "bio": "正在学习 FastAPI 新闻项目"
+}
+```
+
+修改密码：
+
+```text
+PUT http://127.0.0.1:8000/api/user/password
+```
+
+请求体示例：
+
+```json
+{
+  "oldPassword": "123",
+  "newPassword": "123456"
+}
+```
+
+收藏接口示例：
+
+```text
+GET http://127.0.0.1:8000/api/favorite/check?newsId=2
+POST http://127.0.0.1:8000/api/favorite/add
+DELETE http://127.0.0.1:8000/api/favorite/remove?newsId=2
+```
+
+添加收藏请求体：
+
+```json
+{
+  "newsId": 2
+}
+```
+
 ## 接口实现流程
 
 ### 1. 模块化路由
@@ -271,6 +366,12 @@ router = APIRouter(prefix="/api/news", tags=["news"])
 router = APIRouter(prefix="/api/user", tags=["users"])
 ```
 
+收藏模块使用独立路由前缀：
+
+```python
+router = APIRouter(prefix="/api/favorite", tags=["favorite"])
+```
+
 ### 2. 定义模型类
 
 在 `models/news.py` 中用 SQLAlchemy 2.x 写 ORM 模型：
@@ -287,6 +388,9 @@ class User(Base):
 
 class UserToken(Base):
     __tablename__ = "user_token"
+
+class Favorite(Base):
+    __tablename__ = "favorite"
 ```
 
 模型类和数据库表对应，类属性和字段对应。
@@ -350,6 +454,14 @@ Token 有效期当前设置为 7 天：
 
 ```python
 expires_at = datetime.now() + timedelta(days=7)
+```
+
+收藏接口的核心 CRUD 流程：
+
+```text
+检查收藏：select(Favorite).where(user_id, news_id)
+添加收藏：创建 Favorite 对象 -> add() -> commit() -> refresh()
+取消收藏：delete(Favorite).where(user_id, news_id) -> commit() -> 检查 rowcount
 ```
 
 ### 4. 路由调用逻辑
@@ -519,6 +631,44 @@ def success_response(message: str = "success", data=None):
     ...
 ```
 
+### HTTPException 大小写写错
+
+FastAPI 中的异常类名是 `HTTPException`，不是 `HttpException`。Python 区分大小写，如果写成：
+
+```python
+from fastapi import HttpException
+```
+
+会在模块导入阶段报错。正确写法是：
+
+```python
+from fastapi import HTTPException
+```
+
+### Authorization 请求头处理
+
+需要登录态的接口通过依赖项 `get_current_user()` 获取当前用户。`Authorization` 请求头建议先设置为可选，再在函数内部主动判断：
+
+```python
+authorization: Optional[str] = Header(None, alias="Authorization")
+
+if not authorization:
+    raise HTTPException(status_code=401, detail="未登录")
+```
+
+这样缺少 Token 时会返回清晰的 `401 未登录`，不会先触发请求参数校验错误。
+
+### Pydantic 字段别名
+
+前端常用小驼峰字段，例如 `newsId`、`oldPassword`、`newPassword`；Python 代码中更适合使用下划线命名，例如 `news_id`、`old_password`、`new_password`。可以使用 `Field(..., alias="前端字段名")` 做映射：
+
+```python
+class FavoriteAddRequest(BaseModel):
+    news_id: int = Field(..., alias="newsId")
+```
+
+这样前端传 `newsId`，后端函数内部仍然使用 `data.news_id`。
+
 ## 实操经验总结
 
 - 先建数据库和表，再写 ORM 模型，模型字段要参考真实表结构。
@@ -530,11 +680,15 @@ def success_response(message: str = "success", data=None):
 - `update()` 之后如果路由层要判断成功失败，应检查 `rowcount`，不要依赖没有返回值的函数。
 - 注册、登录这类接口建议统一返回 `code`、`message`、`data`，前端处理会更稳定。
 - Token 是后端发给前端的访问令牌，前端保存后可以在后续请求中携带，用来证明“已经登录过”。
+- 需要登录态的接口统一使用 `Depends(get_current_user)`，避免每个路由重复解析 Token。
+- 前端字段名和后端 Python 变量名不一致时，用 Pydantic `Field(alias=...)` 保持两边命名习惯。
+- 添加、取消收藏这类用户行为接口，要同时用 `user_id` 和 `news_id` 限定，避免影响其他用户的数据。
 - ORM 字段默认时间建议传 `datetime.now` 函数本身，不要写成 `datetime.now()`，避免所有记录共用导入时的时间。
 - `.env` 只保存本地密钥和连接串，README 只能写示例，不能写真实密码。
 
 ## 后续计划
 
-- 实现用户登录接口，校验密码并返回 Token
-- 实现收藏、浏览历史等用户行为接口
-- 增加常见错误处理，例如分类不存在、新闻不存在
+- 继续完善收藏列表接口，支持查看当前用户收藏过的新闻。
+- 实现浏览历史接口，记录和查询用户阅读记录。
+- 补充用户资料更新、修改密码和收藏模块的接口联调记录。
+- 增加更细的错误处理，例如收藏重复、新闻不存在、Token 过期提示。

@@ -39,3 +39,17 @@ class UserAuthResponse(BaseModel):
         populate_by_name=True,  # 通过字段名填充数据
         from_attributes=True,  # 通过 orm_model 属性填充数据
     )
+
+
+#更新用户信息的模型类
+class UserUpdateRequest(BaseModel):
+    nickname: str = None
+    avatar: str = None
+    gender: str = None
+    bio: str = None
+    phone: str = None
+    
+#修改密码
+class UserChangePasswordRequest(BaseModel):
+    old_password: str = Field(..., alias="oldPassword", description="旧密码")
+    new_password: str = Field(..., min_length=6,alias="newPassword", description="新密码")

@@ -17,4 +17,5 @@ def verify_password(password: str, hashed_password: str):
     if len(password_bytes) > 72:
         return False
 
+    #密码匹配返回True   密码不匹配返回False
     return bcrypt.checkpw(password_bytes, hashed_password.encode("utf-8"))
