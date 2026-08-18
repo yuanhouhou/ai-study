@@ -12,6 +12,9 @@ env/
 .codex/
 .agents/
 AGENTS.md
+# Local Codex working documents (kept on this machine only)
+01_GitHub仓库文件/Codex从需求到交付完整链路使用文档.md
+01_GitHub仓库文件/Codex会话复盘与个人风格档案.md
 
 # Local dependency and package caches
 .codex_deps/
