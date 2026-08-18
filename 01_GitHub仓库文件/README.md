@@ -13,6 +13,7 @@
 - [Python 并发编程实战](#python-并发编程实战)
 - [MySQL 数据库学习资料](#mysql-数据库学习资料)
 - [FastAPI Web 开发](#fastapi-web-开发)
+- [Redis 缓存](#redis-缓存)
 - [hello-agents](#hello-agents)
 - [Claude Code 学习手册](#claude-code-学习手册)
 - [来源与许可证](#来源与许可证)
@@ -117,6 +118,27 @@ FastAPI 的特点：
 参考资源：
 
 - [黑马程序员 PythonWeb 开发：FastAPI 从入门到实战](https://www.bilibili.com/video/BV1zV2QBtE39?vd_source=e2413576ab62a790f6f465afd377f842)
+
+## Redis 缓存
+
+`fastapi_file/toutiao_backend/config/cache_conf.py` 提供了异步 Redis 缓存封装，作为新闻资讯后端后续接入缓存的基础。
+
+缓存适合保存读取频繁、更新相对较少的数据，例如新闻分类、热门新闻列表或新闻详情。常见查询流程是：
+
+```text
+客户端请求 -> 查询 Redis 缓存 -> 命中则直接返回
+                         -> 未命中则查询 MySQL -> 写入 Redis（设置过期时间）-> 返回数据
+```
+
+Redis 将数据以 Key-Value 形式存放在内存中，能减少重复数据库查询、降低接口延迟和 MySQL 负载。当前封装支持字符串、列表和字典的读取与写入，并通过 `setex()` 设置缓存过期时间。
+
+本地运行前需启动 Redis 服务，并在项目 Python 环境中安装客户端库：
+
+```powershell
+pip install redis
+```
+
+本仓库本地开发使用 Redis 5，因此连接配置固定 `protocol=2`，避免新版 `redis-py` 默认发送 `HELLO 3` 而导致不兼容。
 
 ## hello-agents
 

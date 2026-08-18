@@ -36,6 +36,7 @@ README 分工：
 - [异常处理](#异常处理)
 - [中间件](#中间件)
 - [依赖注入](#依赖注入)
+- [Redis 缓存](#redis-缓存)
 - [ORM 简介](#orm-简介)
 - [SQLAlchemy 2.x 常用导入](#sqlalchemy-2x-常用导入)
 - [SQLAlchemy 异步 ORM 建表示例](#sqlalchemy-异步-orm-建表示例)
@@ -1170,6 +1171,37 @@ http://127.0.0.1:8000/user/user_list?skip=5&limit=20
 - 代码复用：一次编写，多处使用
 - 解耦：业务逻辑和基础设施代码分离
 - 易于测试：可以用模拟依赖替换真实依赖
+
+## Redis 缓存
+
+缓存是一种把常用数据暂时存放起来的机制。接口下一次需要同一份数据时，优先从缓存读取，避免每次都访问数据库。
+
+在 Web 项目中，缓存的核心价值是减少重复查询，从而提升响应速度、降低网络延迟，并减轻数据库负载。常用流程如下：
+
+```text
+前端请求数据
+-> 后端查询 Redis
+-> 缓存命中：直接返回缓存数据
+-> 缓存未命中：查询 MySQL -> 写入 Redis（设置过期时间）-> 返回数据
+```
+
+当前新闻项目在 `toutiao_backend/config/cache_conf.py` 中使用 `redis.asyncio` 创建异步客户端，并封装了下列操作：
+
+| 方法 | 参数 | 作用 |
+| --- | --- | --- |
+| `get_cache` | `key` | 读取字符串缓存；缓存不存在时返回 `None` |
+| `get_json_cache` | `key` | 读取并解析列表或字典缓存 |
+| `set_cache` | `key`、`value`、`expire` | 写入缓存并设置过期时间，默认 3600 秒 |
+
+写入列表或字典时，代码会用 `json.dumps()` 序列化；读取时再用 `json.loads()` 还原。这让 Redis 的字符串存储结构也能方便地保存 JSON 数据。
+
+本地使用前先确保 Redis 服务已启动，并在当前 Python 环境安装依赖：
+
+```powershell
+pip install redis
+```
+
+本机 Redis 为 5.x，配置中指定 `protocol=2` 以兼容新版 `redis-py`。如果省略该参数，客户端可能默认发送 Redis 6 以后才支持的 `HELLO 3` 命令并连接失败。
 
 ## ORM 简介
 

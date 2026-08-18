@@ -83,3 +83,25 @@
 - 启动 MySQL 服务时，使用管理员终端执行 `net start MySQL80`。
 - 当用户要求启动后端、检测前后端联通、运行依赖 MySQL 的代码，且 `MySQL80` 当前未运行时，Codex 应直接请求管理员权限启动 `MySQL80`，不需要另行让用户手动开启；如果系统拒绝管理员权限或启动失败，再把失败原因和用户需要执行的命令说明清楚。
 - 如需验证完整流程，可先在管理员终端执行 `net stop MySQL80` 关闭服务，再执行 `net start MySQL80` 启动服务，最后在当前项目终端 `E:\vscode_project\python_study\deeplearning_file` 下执行 `sc.exe query MySQL80` 确认状态为 `RUNNING`。
+
+## 11. Redis 服务操作流程
+
+- 本机 Redis Windows 服务名为 `Redis`，当前用于本地开发和 VS Code Redis 插件连接。
+- Redis 服务端使用 Windows 原生移植版 `tporadowski/redis`，版本为 `Redis 5.0.14.1 for Windows`。
+- Redis 相关文件尽量集中存放在 `E:\redis`：
+  - 服务端程序目录：`E:\redis\server`
+  - 配置文件：`E:\redis\redis.windows-service.conf`
+  - 数据目录：`E:\redis\data`
+  - 日志目录：`E:\redis\logs`
+  - 命令行客户端：`E:\redis\server\redis-cli.exe`
+- Redis 默认连接信息：
+  - Host：`127.0.0.1`
+  - Port：`6379`
+  - Password：留空
+  - Database：`0`
+- VS Code 已安装 Redis 官方插件 `redis.redis-for-vscode`，可用上述连接信息连接本地 Redis。
+- 查询 Redis 服务状态时，在 PowerShell 中使用 `sc.exe query Redis` 或 `Get-Service -Name Redis`。
+- 查询结果中 `STATE : 4 RUNNING` 或 `Status: Running` 表示 Redis 服务已打开；`STATE : 1 STOPPED` 或 `Status: Stopped` 表示 Redis 服务已关闭。
+- 启动 Redis 服务时，使用管理员终端执行 `net start Redis`；停止服务时执行 `net stop Redis`。
+- 当用户要求启动后端、检测前后端联通、运行依赖 Redis 的代码，且 `Redis` 当前未运行时，Codex 应直接请求管理员权限启动 `Redis`，不需要另行让用户手动开启；如果系统拒绝管理员权限或启动失败，再把失败原因和用户需要执行的命令说明清楚。
+- 验证 Redis 连通性时，优先执行 `E:\redis\server\redis-cli.exe -h 127.0.0.1 -p 6379 PING`，返回 `PONG` 表示服务正常。

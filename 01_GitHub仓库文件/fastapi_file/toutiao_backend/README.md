@@ -31,6 +31,7 @@
 - 封装浏览历史的新增或更新时间、分页查询、单条删除和清空 CRUD
 - 使用 `bcrypt` 对注册密码加密存储
 - 使用 `uuid.uuid4()` 生成临时访问令牌 Token
+- 创建异步 Redis 客户端，并封装字符串、列表和字典缓存的读取与写入
 - 使用 Pydantic 定义用户认证、用户资料更新、修改密码、收藏和浏览历史接口请求/响应模型
 - 封装 `success_response()` 统一接口响应结构
 - 注册全局异常处理器，统一处理业务异常、数据库完整性异常和服务器内部异常
@@ -83,6 +84,7 @@
 | Pydantic | 请求体和响应模型校验 |
 | bcrypt | 密码哈希加密 |
 | uuid | 生成临时访问令牌 Token |
+| Redis | 内存型 Key-Value 缓存 |
 
 ## 目录结构
 
@@ -92,7 +94,8 @@ toutiao_backend/
 ├── main.py                # FastAPI 应用入口，注册路由
 ├── database.sql           # 新闻项目数据库结构和初始化数据
 ├── config/
-│   └── db_conf.py         # 异步数据库连接和会话依赖
+│   ├── db_conf.py         # 异步数据库连接和会话依赖
+│   └── cache_conf.py      # 异步 Redis 客户端和缓存读写封装
 ├── crud/
 │   ├── favorite.py        # 收藏相关数据库操作
 │   ├── history.py         # 浏览历史相关数据库操作
@@ -181,6 +184,33 @@ ASYNC_DATABASE_URL=mysql+asyncmy://用户名:密码@127.0.0.1:3306/news_app?char
 ```
 
 当前 `config/db_conf.py` 会读取 `ASYNC_DATABASE_URL`，并连接到 `news_app` 数据库。
+
+## Redis 缓存
+
+缓存配置位于 `config/cache_conf.py`，通过 `redis.asyncio` 创建异步客户端。默认连接本机 `localhost:6379` 的 `0` 号数据库，并将 Redis 返回的字节数据自动解码为字符串。
+
+当前封装包括：
+
+| 方法 | 说明 |
+| --- | --- |
+| `get_cache(key)` | 获取字符串缓存；键不存在或读取异常时返回 `None` |
+| `get_json_cache(key)` | 获取并解析 JSON 格式的列表或字典缓存 |
+| `set_cache(key, value, expire=3600)` | 写入缓存；列表、字典自动序列化为 JSON，并设置过期时间 |
+
+适合优先接入缓存的数据包括新闻分类、热门新闻列表和新闻详情。读取接口应先查缓存，未命中时查询 MySQL，再将结果写入 Redis：
+
+```text
+请求 -> Redis 查询 -> 命中：直接返回
+                  -> 未命中：MySQL 查询 -> Redis 写入（带过期时间）-> 返回
+```
+
+项目 Python 环境需要安装：
+
+```powershell
+pip install redis
+```
+
+本地 Redis 服务为 5.x，`cache_conf.py` 已设置 `protocol=2`，用于兼容新版 `redis-py`；不应移除该配置，除非服务端已升级至 Redis 6 或更高版本。
 
 ## 数据库导入
 
