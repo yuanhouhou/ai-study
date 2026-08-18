@@ -204,6 +204,15 @@ ASYNC_DATABASE_URL=mysql+asyncmy://用户名:密码@127.0.0.1:3306/news_app?char
                   -> 未命中：MySQL 查询 -> Redis 写入（带过期时间）-> 返回
 ```
 
+当前 `routers/news.py` 已将新闻分类和新闻列表请求交给 `crud/news_cache.py`。缓存键和过期时间如下：
+
+| 数据 | 缓存键 | 过期时间 |
+| --- | --- | --- |
+| 新闻分类 | `news:categories` | 7200 秒 |
+| 新闻列表 | `news:list:<categoryId>:<page>:<pageSize>` | 1800 秒 |
+
+`crud/news_cache.py` 会先读取缓存；未命中时查询 MySQL。新闻列表写入 Redis 前，会经 `NewsItemBase` 转成可 JSON 序列化的字典；读取命中后再还原为 `News` 对象，保持路由层的使用方式不变。
+
 项目 Python 环境需要安装：
 
 ```powershell
@@ -211,6 +220,18 @@ pip install redis
 ```
 
 本地 Redis 服务为 5.x，`cache_conf.py` 已设置 `protocol=2`，用于兼容新版 `redis-py`；不应移除该配置，除非服务端已升级至 Redis 6 或更高版本。
+
+## AI 问答接口
+
+前端 AI 问答页面直接调用 DeepSeek 的 Chat Completions API，并使用流式响应逐段展示内容。前端 `fetch()` 不会像 OpenAI SDK 一样自动补全路径，因此配置必须填写完整接口地址：
+
+```text
+https://api.deepseek.com/chat/completions
+```
+
+请求使用 `POST`，并传入 `model`、`messages` 与 `stream: true`。例如当前模型可使用 `deepseek-v4-pro`。`https://api.deepseek.com` 只是基础地址；直接向它发起 `POST` 会得到 `404`。
+
+API Key 只能保存在本地被忽略的前端配置或后端环境变量中，不能提交到 GitHub。生产环境应由后端持有 Key，并向前端提供自己的 AI 问答接口。
 
 ## 数据库导入
 

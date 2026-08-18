@@ -37,6 +37,7 @@ README 分工：
 - [中间件](#中间件)
 - [依赖注入](#依赖注入)
 - [Redis 缓存](#redis-缓存)
+- [AI 问答接口](#ai-问答接口)
 - [ORM 简介](#orm-简介)
 - [SQLAlchemy 2.x 常用导入](#sqlalchemy-2x-常用导入)
 - [SQLAlchemy 异步 ORM 建表示例](#sqlalchemy-异步-orm-建表示例)
@@ -1202,6 +1203,18 @@ pip install redis
 ```
 
 本机 Redis 为 5.x，配置中指定 `protocol=2` 以兼容新版 `redis-py`。如果省略该参数，客户端可能默认发送 Redis 6 以后才支持的 `HELLO 3` 命令并连接失败。
+
+## AI 问答接口
+
+当前前端 AI 问答使用 DeepSeek 的 Chat Completions 流式接口。OpenAI SDK 中的 `base_url` 会自动拼接接口路径，但浏览器中的 `fetch()` 会原样请求传入的地址，因此需要填写完整 URL：
+
+```text
+https://api.deepseek.com/chat/completions
+```
+
+向基础地址 `https://api.deepseek.com` 直接发送 `POST` 会返回 `404`。请求体应包含 `model`、`messages` 和 `stream: true`；例如 `deepseek-v4-pro`。
+
+API Key 不应提交到仓库，也不宜放在正式产品的浏览器端。学习阶段可使用本地忽略配置；正式项目应由 FastAPI 后端从环境变量读取 Key 并代理调用模型服务。
 
 ## ORM 简介
 
