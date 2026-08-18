@@ -27,10 +27,11 @@
 - 封装分类列表查询 CRUD
 - 封装新闻列表、新闻数量、新闻详情、浏览量自增、相关新闻查询 CRUD
 - 封装用户查询、用户创建、Token 创建或更新、用户信息更新、密码修改 CRUD
-- 封装收藏状态查询、添加收藏、取消收藏 CRUD
+- 封装收藏状态查询、添加收藏、取消收藏、收藏列表和清空收藏 CRUD
+- 封装浏览历史的新增或更新时间、分页查询、单条删除和清空 CRUD
 - 使用 `bcrypt` 对注册密码加密存储
 - 使用 `uuid.uuid4()` 生成临时访问令牌 Token
-- 使用 Pydantic 定义用户认证、用户资料更新、修改密码和收藏接口请求/响应模型
+- 使用 Pydantic 定义用户认证、用户资料更新、修改密码、收藏和浏览历史接口请求/响应模型
 - 封装 `success_response()` 统一接口响应结构
 - 注册全局异常处理器，统一处理业务异常、数据库完整性异常和服务器内部异常
 - 抽取 `get_current_user()` 依赖，通过 `Authorization` 请求头校验 Token 并获取当前用户
@@ -43,7 +44,8 @@
 - 实现获取当前用户信息接口
 - 实现修改用户资料接口
 - 实现修改密码接口
-- 实现收藏状态检查、添加收藏、取消收藏接口
+- 实现收藏状态检查、添加收藏、取消收藏、收藏列表和清空收藏接口
+- 实现浏览历史新增、分页列表、单条删除和清空接口
 - 导入新闻资讯项目数据库 `news_app`
 
 当前接口：
@@ -62,6 +64,12 @@
 | `GET` | `/api/favorite/check` | 检查新闻是否已收藏，参数为 `newsId`，需要 `Authorization` 请求头 |
 | `POST` | `/api/favorite/add` | 添加收藏，请求体参数为 `newsId`，需要 `Authorization` 请求头 |
 | `DELETE` | `/api/favorite/remove` | 取消收藏，参数为 `newsId`，需要 `Authorization` 请求头 |
+| `GET` | `/api/favorite/list` | 分页获取当前用户收藏列表，参数为 `page`、`pageSize`，需要 `Authorization` 请求头 |
+| `DELETE` | `/api/favorite/clear` | 清空当前用户收藏，需要 `Authorization` 请求头 |
+| `POST` | `/api/history/add` | 新增或更新一条浏览历史，请求体参数为 `newsId`，需要 `Authorization` 请求头 |
+| `GET` | `/api/history/list` | 分页获取当前用户浏览历史，参数为 `page`、`pageSize`，需要 `Authorization` 请求头 |
+| `DELETE` | `/api/history/delete/{newsId}` | 删除当前用户指定新闻的浏览历史，需要 `Authorization` 请求头 |
+| `DELETE` | `/api/history/clear` | 清空当前用户浏览历史，需要 `Authorization` 请求头 |
 
 ## 技术栈
 
@@ -87,18 +95,23 @@ toutiao_backend/
 │   └── db_conf.py         # 异步数据库连接和会话依赖
 ├── crud/
 │   ├── favorite.py        # 收藏相关数据库操作
+│   ├── history.py         # 浏览历史相关数据库操作
 │   ├── news.py            # 新闻相关数据库操作
 │   └── users.py           # 用户认证、资料和 Token 相关数据库操作
 ├── models/
 │   ├── favorite.py        # 收藏 SQLAlchemy ORM 模型
+│   ├── history.py         # 浏览历史 SQLAlchemy ORM 模型
 │   ├── news.py            # 新闻相关 SQLAlchemy ORM 模型
 │   └── users.py           # 用户和 Token SQLAlchemy ORM 模型
 ├── routers/
 │   ├── favorite.py        # 收藏模块接口路由
+│   ├── history.py         # 浏览历史模块接口路由
 │   ├── news.py            # 新闻模块接口路由
 │   └── users.py           # 用户模块接口路由
 ├── schemas/
+│   ├── base.py            # 新闻列表共用响应字段
 │   ├── favorite.py        # 收藏请求和响应 Pydantic 模型
+│   ├── history.py         # 浏览历史请求和响应 Pydantic 模型
 │   └── users.py           # 用户请求和响应 Pydantic 模型
 └── utils/
     ├── auth.py            # Token 认证依赖
@@ -338,9 +351,28 @@ PUT http://127.0.0.1:8000/api/user/password
 GET http://127.0.0.1:8000/api/favorite/check?newsId=2
 POST http://127.0.0.1:8000/api/favorite/add
 DELETE http://127.0.0.1:8000/api/favorite/remove?newsId=2
+GET http://127.0.0.1:8000/api/favorite/list?page=1&pageSize=10
+DELETE http://127.0.0.1:8000/api/favorite/clear
 ```
 
 添加收藏请求体：
+
+```json
+{
+  "newsId": 2
+}
+```
+
+浏览历史接口示例：
+
+```text
+POST http://127.0.0.1:8000/api/history/add
+GET http://127.0.0.1:8000/api/history/list?page=1&pageSize=10
+DELETE http://127.0.0.1:8000/api/history/delete/2
+DELETE http://127.0.0.1:8000/api/history/clear
+```
+
+新增浏览历史请求体：
 
 ```json
 {
@@ -372,6 +404,12 @@ router = APIRouter(prefix="/api/user", tags=["users"])
 router = APIRouter(prefix="/api/favorite", tags=["favorite"])
 ```
 
+浏览历史模块同样独立维护：
+
+```python
+router = APIRouter(prefix="/api/history", tags=["history"])
+```
+
 ### 2. 定义模型类
 
 在 `models/news.py` 中用 SQLAlchemy 2.x 写 ORM 模型：
@@ -391,6 +429,9 @@ class UserToken(Base):
 
 class Favorite(Base):
     __tablename__ = "favorite"
+
+class History(Base):
+    __tablename__ = "history"
 ```
 
 模型类和数据库表对应，类属性和字段对应。
@@ -683,12 +724,13 @@ class FavoriteAddRequest(BaseModel):
 - 需要登录态的接口统一使用 `Depends(get_current_user)`，避免每个路由重复解析 Token。
 - 前端字段名和后端 Python 变量名不一致时，用 Pydantic `Field(alias=...)` 保持两边命名习惯。
 - 添加、取消收藏这类用户行为接口，要同时用 `user_id` 和 `news_id` 限定，避免影响其他用户的数据。
+- 浏览历史以 `user_id + news_id` 作为定位条件：重复浏览时更新时间而非重复插入；列表按 `view_time` 倒序，删除时也必须附带 `user_id`。
+- 收藏列表和浏览历史列表都需要在查询前统计总数，再按 `page`、`pageSize` 使用 `offset()`、`limit()` 分页，并返回 `hasMore` 供前端判断。
+- 新闻公共响应字段可以抽到 `schemas/base.py`，其中 `publish_time` 应和 ORM 模型保持 `datetime` 类型，再用字段别名输出为 `publishTime`。
 - ORM 字段默认时间建议传 `datetime.now` 函数本身，不要写成 `datetime.now()`，避免所有记录共用导入时的时间。
 - `.env` 只保存本地密钥和连接串，README 只能写示例，不能写真实密码。
 
 ## 后续计划
 
-- 继续完善收藏列表接口，支持查看当前用户收藏过的新闻。
-- 实现浏览历史接口，记录和查询用户阅读记录。
 - 补充用户资料更新、修改密码和收藏模块的接口联调记录。
 - 增加更细的错误处理，例如收藏重复、新闻不存在、Token 过期提示。

@@ -925,6 +925,10 @@ class FavoriteAddRequest(BaseModel):
 
 这样前端传 `newsId`，后端代码里仍然使用更符合 Python 风格的 `news_id`。
 
+浏览历史通常不是每次浏览都插入新记录。先按 `user_id + news_id` 查询：已有记录则更新时间，没有记录才新增；查询列表时再按 `view_time` 倒序分页。这样同一用户反复阅读同一篇新闻，列表中只保留一条最新记录。
+
+新闻、收藏和浏览历史列表需要共享相同新闻字段时，可以把公共字段抽到基础 Pydantic 模型中。字段类型应保持与 ORM 数据一致，例如数据库中的 `publish_time` 是 `datetime`，响应模型也使用 `datetime`，再通过 `alias="publishTime"` 输出为前端需要的小驼峰字段名。
+
 ## 异常处理
 
 当客户端请求的数据不合法，或者资源不存在时，可以使用 `HTTPException` 主动中断请求并返回错误响应。
