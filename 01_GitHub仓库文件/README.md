@@ -10,6 +10,7 @@
 - [Python 基础](#python-基础)
 - [fishbook](#fishbook)
 - [PyTorch 学习资料](#pytorch-学习资料)
+- [Transformer 学习资料](#transformer-学习资料)
 - [Python 并发编程实战](#python-并发编程实战)
 - [MySQL 数据库学习资料](#mysql-数据库学习资料)
 - [FastAPI Web 开发](#fastapi-web-开发)
@@ -20,16 +21,17 @@
 
 ## 仓库导航
 
-| 目录 | 内容 |
-| --- | --- |
-| `deep_learning/` | Python、深度学习相关练习代码 |
-| `fishbook/` | 《深度学习入门：基于 Python 的理论与实践》相关资料 |
-| `study_resourece/` | PyTorch 入门课程资料和练习内容 |
-| `process_thread_coroutine/` | 多线程、多进程、协程、异步 IO 学习内容 |
-| `mysql/` | MySQL 数据库课程资料包和内容笔记 |
-| `fastapi_file/` | FastAPI 后端开发学习代码和笔记 |
-| `hello-agents/` | Datawhale AI Agent 开源学习资料 |
-| `Claude Code 学习手册/` | Claude Code 学习手册 PDF 和配套 README |
+| 目录                          | 内容                                               |
+| ----------------------------- | -------------------------------------------------- |
+| `deep_learning/`            | Python、深度学习相关练习代码                       |
+| `fishbook/`                 | 《深度学习入门：基于 Python 的理论与实践》相关资料 |
+| `study_resourece/`          | PyTorch 入门课程资料和练习内容                     |
+| `transfomer/`               | Transformer 分词与可视化练习代码                   |
+| `process_thread_coroutine/` | 多线程、多进程、协程、异步 IO 学习内容             |
+| `mysql/`                    | MySQL 数据库课程资料包和内容笔记                   |
+| `fastapi_file/`             | FastAPI 后端开发学习代码和笔记                     |
+| `hello-agents/`             | Datawhale AI Agent 开源学习资料                    |
+| `Claude Code 学习手册/`     | Claude Code 学习手册 PDF 和配套 README             |
 
 ## Python 基础
 
@@ -53,6 +55,24 @@
 参考资料：
 
 - [PyTorch 深度学习快速入门教程：小土堆](https://www.bilibili.com/video/BV1hE411t7RN)
+
+## Transformer 学习资料
+
+`transfomer/` 用于整理 Transformer 相关的分词与可视化练习代码。建议按“基础概念 → 论文原理 → 实战进阶”的顺序学习，重点理解自注意力、位置编码、编码器和解码器。
+
+### 入门：理解核心机制
+
+- [吴恩达：Transformer 工作原理（DeepLearning.AI）](https://www.bilibili.com/video/BV1hSNC6sEXJ?p=9&vd_source=e2413576ab62a790f6f465afd377f842)
+- [李宏毅：自注意力机制和 Transformer 详细解析](https://www.bilibili.com/video/BV1r8nMz4EAj?vd_source=e2413576ab62a790f6f465afd377f842)
+
+### 论文：精读 Transformer 原始论文
+
+- [Transformer 论文逐段精读【论文精读】](https://www.bilibili.com/video/BV1pu411o7BE?vd_source=e2413576ab62a790f6f465afd377f842)
+
+### 进阶：系统学习与实践
+
+- [NLP_ability：自然语言处理学习资料与实践路线](https://github.com/DA-southampton/NLP_ability/blob/master/README.md)
+- [Transformer 从零详细解读](https://www.bilibili.com/video/BV1Di4y1c7Zm?vd_source=e2413576ab62a790f6f465afd377f842)
 
 ## Python 并发编程实战
 
