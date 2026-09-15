@@ -72,7 +72,6 @@
 ### 进阶：系统学习与实践
 
 - [NLP_ability：自然语言处理学习资料与实践路线](https://github.com/DA-southampton/NLP_ability/blob/master/README.md)
-- [Transformer 从零详细解读](https://www.bilibili.com/video/BV1Di4y1c7Zm?vd_source=e2413576ab62a790f6f465afd377f842)
 
 ## Python 并发编程实战
 
